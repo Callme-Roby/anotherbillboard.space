@@ -1,6 +1,6 @@
 const ENTRIES = [
   { control: "Molette", action: "Zoom avant / arrière" },
-  { control: "Panneau libre", action: "Bientôt réservable" },
+  { control: "Réserver un panneau", action: "Bouton en bas de l'écran" },
   { control: "Panneau occupé", action: "Bientôt cliquable (visite du site)" },
 ];
 

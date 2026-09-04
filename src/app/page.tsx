@@ -1,6 +1,7 @@
 import { Legend } from "@/components/scene/Legend";
 import { Minimap } from "@/components/scene/Minimap";
 import { SceneCanvas } from "@/components/scene/SceneCanvas";
+import { PurchaseTrigger } from "@/components/purchase/PurchaseTrigger";
 
 export default function Home() {
   return (
@@ -8,6 +9,7 @@ export default function Home() {
       <SceneCanvas />
       <Minimap />
       <Legend />
+      <PurchaseTrigger />
     </main>
   );
 }

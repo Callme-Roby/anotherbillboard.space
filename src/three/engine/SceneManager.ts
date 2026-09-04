@@ -3,11 +3,11 @@ import * as THREE from "three";
 import { createCentralBuilding } from "../objects/createCentralBuilding";
 import { createGround } from "../objects/createGround";
 import { createPanelMesh } from "../objects/createPanel";
-import { placeholderRowLayout } from "../placeholders/layout";
-import { MOCK_PANELS, SIGNATURE_PANEL } from "../placeholders/mockPanels";
-import { sizeFromAmount } from "../placeholders/sizing";
+import { SIGNATURE_PANEL } from "../placeholders/mockPanels";
 import { CameraController } from "./CameraController";
 import * as C from "./constants";
+import { disposeObject3D } from "./disposeObject3D";
+import { LivePanels } from "./LivePanels";
 import { createPostProcessing, type PostProcessingHandle } from "./PostProcessing";
 import { sceneEvents, ZOOM_CHANGE_EVENT, type ZoomChangeDetail } from "./sceneEvents";
 
@@ -29,6 +29,7 @@ export class SceneManager {
   private readonly postProcessing: PostProcessingHandle;
   private readonly timer: THREE.Timer;
   private readonly resizeObserver: ResizeObserver;
+  private readonly livePanels: LivePanels;
 
   private rafId: number | null = null;
   private disposed = false;
@@ -65,6 +66,8 @@ export class SceneManager {
     container.appendChild(this.renderer.domElement);
 
     this.buildScene();
+    this.livePanels = new LivePanels();
+    this.scene.add(this.livePanels.group);
     this.postProcessing = createPostProcessing(this.renderer, this.scene, this.camera, width, height);
 
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
@@ -84,29 +87,11 @@ export class SceneManager {
     this.scene.add(createGround());
     this.scene.add(createCentralBuilding());
 
-    // Panels are fixed flat planes, not camera-tracking billboards (that
-    // behavior is reserved for characters/birds per spec) — they all
-    // face +Z, the camera's general approach direction. Note this is
-    // deliberately *not* `mesh.lookAt(origin)`: for panels spread wide,
-    // facing the scene origin points them edge-on to the camera instead
-    // of toward it, since "toward the origin" and "toward the camera"
-    // diverge sharply once a panel sits far enough to either side.
-    const panelsGroup = new THREE.Group();
-    panelsGroup.name = "panels";
-    const widths = MOCK_PANELS.map((panel) => (panel.size ?? sizeFromAmount(panel.amount)).width);
-    const positions = placeholderRowLayout(widths);
-    MOCK_PANELS.forEach((panel, i) => {
-      const mesh = createPanelMesh(panel);
-      const pos = positions[i];
-      mesh.position.set(pos.x, mesh.geometry.parameters.height / 2, pos.z);
-      panelsGroup.add(mesh);
-    });
-    this.scene.add(panelsGroup);
-
     // Fixed, non-purchasable, excentered — outside the placement algorithm.
-    // x=-15 clears the mock row above (~±11 wide) with room to spare. A
-    // modest yaw (not the ~36° first tried) keeps it near-legible instead
-    // of edge-on to the camera's fixed viewing direction.
+    // x=-15 clears the mock/live panel row (~±11 wide, see LivePanels)
+    // with room to spare. A modest yaw (not the ~36° first tried) keeps
+    // it near-legible instead of edge-on to the camera's fixed viewing
+    // direction.
     const signature = createPanelMesh(SIGNATURE_PANEL);
     signature.position.set(-15, signature.geometry.parameters.height / 2 + 0.4, 8);
     signature.rotation.y = Math.PI / 16;
@@ -152,18 +137,12 @@ export class SceneManager {
     this.timer.disconnect();
     this.resizeObserver.disconnect();
     this.cameraController.detach(this.container);
+    this.livePanels.dispose(); // also disconnects the realtime subscription
 
-    this.scene.traverse((object) => {
-      if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
-        object.geometry.dispose();
-        const material = object.material;
-        if (Array.isArray(material)) {
-          material.forEach(disposeMaterial);
-        } else {
-          disposeMaterial(material);
-        }
-      }
-    });
+    // Covers everything still in the scene, including anything
+    // livePanels.dispose() already handled above — redundant disposal
+    // calls on the same geometry/material are safe no-ops in three.js.
+    disposeObject3D(this.scene);
 
     this.postProcessing.dispose();
     this.renderer.dispose();
@@ -171,10 +150,4 @@ export class SceneManager {
       this.container.removeChild(this.renderer.domElement);
     }
   }
-}
-
-function disposeMaterial(material: THREE.Material) {
-  const map = (material as THREE.MeshBasicMaterial).map;
-  map?.dispose();
-  material.dispose();
 }
