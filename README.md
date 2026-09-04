@@ -54,9 +54,18 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
 ### Scène 3D (première étape)
 
 - Bâtiment central : un cluster de tours de hauteurs variées sur un
-  podium commun (silhouette irrégulière façon Shinjuku/Times Square),
-  avec 4 écrans de classement sur la façade du podium (alimentés par les
-  vrais top-4 paiements une fois qu'il y en a — voir plus bas).
+  podium commun (silhouette irrégulière façon Shinjuku/Times Square).
+  Les 4 écrans de classement (top-4 paiements — voir `GET /api/buildings`
+  plus bas) sont répartis sur le cluster plutôt qu'alignés sur une seule
+  face, d'après une référence visuelle fournie par l'utilisateur : les
+  rangs 1 et 2 sur des mâts en toiture au-dessus des deux tours les plus
+  hautes (écrans "vitrine", les plus visibles), les rangs 3 et 4 encastrés
+  à mi-hauteur sur la façade de deux tours plus basses
+  (`createCentralBuilding.ts`). Encore statique pour l'instant : ces 4
+  emplacements affichent des données de démonstration
+  (`RANK_SLOT_PLACEHOLDERS`), rien côté scène ne consomme encore
+  `GET /api/buildings` — la disposition est prête, le branchement sur le
+  vrai classement reste à faire.
 - Sol + grille, panneau signature "ROBY" fixe et excentré.
 - Caméra perspective fixe (position posée une fois, ne bouge jamais),
   vue de face au niveau du sol (pas d'angle plongeant) : le scroll fait

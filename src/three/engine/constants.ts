@@ -18,9 +18,11 @@ export const CAMERA_FAR = 200;
 // Level, head-on view — camera sits at the same height as the look-at
 // target and faces it straight on (direction has no Y component), no
 // elevated/looking-down tilt.
-// y=4 roughly centers the (taller, clustered-tower) central building
-// vertically while still keeping ground panels comfortably in frame.
-export const CAMERA_LOOK_AT = new THREE.Vector3(0, 4, 0);
+// y=5.5 roughly centers the central building (towers + its rooftop-mounted
+// rank screens, the tallest of which now reaches ~y=12.9 — see
+// createCentralBuilding.ts) vertically at the default zoom, while still
+// keeping ground panels comfortably in frame below.
+export const CAMERA_LOOK_AT = new THREE.Vector3(0, 5.5, 0);
 export const CAMERA_DIRECTION = new THREE.Vector3(0, 0, 1);
 export const CAMERA_FIXED_DISTANCE = 30;
 export const CAMERA_MIN_ZOOM = 0.6;
