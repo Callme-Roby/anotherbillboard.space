@@ -58,11 +58,14 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
   avec 4 écrans de classement sur la façade du podium (alimentés par les
   vrais top-4 paiements une fois qu'il y en a — voir plus bas).
 - Sol + grille, panneau signature "ROBY" fixe et excentré.
-- Caméra orthographique fixe, vue de face au niveau du sol (pas d'angle
-  plongeant) : le scroll fait varier `camera.zoom` (un vrai zoom optique,
-  vérifié directement dans le code source de three.js — la caméra ne se
-  déplace jamais), pas un dolly qui rapproche la caméra. Perspective
-  plate, sans déformation, à tous les niveaux de zoom.
+- Caméra perspective fixe (position posée une fois, ne bouge jamais),
+  vue de face au niveau du sol (pas d'angle plongeant) : le scroll fait
+  varier `camera.zoom` — sur `PerspectiveCamera`, mathématiquement
+  équivalent à resserrer le FOV à position fixe (vérifié dans le code
+  source de three.js), donc un vrai zoom optique plutôt qu'un dolly qui
+  rapproche la caméra. Un FOV de base modéré (30°) garde un peu de
+  vraie profondeur/perspective sans que ce soit prononcé — l'orthographique
+  pur essayé d'abord rendait trop plat.
 - Post-traitement global unique (`EffectComposer` + `RenderPass` + un
   `ShaderPass` custom `CRTShader` + `OutputPass`) : rendu interne basse
   résolution + upscale `NEAREST` (pixel/aliasing façon PS1), scanlines,

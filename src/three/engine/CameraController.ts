@@ -12,16 +12,17 @@ export interface CameraControllerOptions {
 }
 
 /**
- * True (orthographic) zoom, not a dolly: the camera position is set once
- * and never moves — scroll only ever changes `camera.zoom`, which
- * rescales the view frustum (see OrthographicCamera.updateProjectionMatrix
- * — verified directly against the installed three.js source: it divides
- * the frustum by `zoom`, no repositioning involved). That's also what
- * keeps the flat, no-perspective-foreshortening look intact at every
- * zoom level, rather than only at one particular distance.
+ * A real zoom-lens effect, not a dolly: the camera position is set once
+ * and never moves — scroll only ever changes `camera.zoom`, which on a
+ * PerspectiveCamera rescales the frustum from `fov / zoom` (verified
+ * directly against the installed three.js source) — mathematically the
+ * same image as narrowing the FOV at that same fixed position. Distinct
+ * from a dolly (which changes perspective/parallax as distance changes)
+ * and from a pure orthographic zoom (which has no perspective at all):
+ * this keeps real depth cues at every zoom level.
  */
 export class CameraController {
-  private readonly camera: THREE.OrthographicCamera;
+  private readonly camera: THREE.PerspectiveCamera;
   private readonly minZoom: number;
   private readonly maxZoom: number;
   private readonly damping: number;
@@ -30,7 +31,7 @@ export class CameraController {
   private targetZoom: number;
   private element: HTMLElement | null = null;
 
-  constructor(camera: THREE.OrthographicCamera, options: CameraControllerOptions) {
+  constructor(camera: THREE.PerspectiveCamera, options: CameraControllerOptions) {
     this.camera = camera;
     this.minZoom = options.minZoom;
     this.maxZoom = options.maxZoom;

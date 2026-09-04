@@ -24,7 +24,7 @@ export class SceneManager {
   private readonly container: HTMLElement;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
-  private readonly camera: THREE.OrthographicCamera;
+  private readonly camera: THREE.PerspectiveCamera;
   private readonly cameraController: CameraController;
   private readonly postProcessing: PostProcessingHandle;
   private readonly timer: THREE.Timer;
@@ -45,15 +45,7 @@ export class SceneManager {
 
     const { width, height } = this.getSize();
 
-    const frustum = computeOrthoFrustum(width, height);
-    this.camera = new THREE.OrthographicCamera(
-      frustum.left,
-      frustum.right,
-      frustum.top,
-      frustum.bottom,
-      C.CAMERA_NEAR,
-      C.CAMERA_FAR,
-    );
+    this.camera = new THREE.PerspectiveCamera(C.CAMERA_FOV, width / height, C.CAMERA_NEAR, C.CAMERA_FAR);
     const fixedPosition = C.CAMERA_LOOK_AT.clone().addScaledVector(C.CAMERA_DIRECTION, C.CAMERA_FIXED_DISTANCE);
     this.cameraController = new CameraController(this.camera, {
       position: fixedPosition,
@@ -99,8 +91,7 @@ export class SceneManager {
     // Fixed, non-purchasable, excentered — outside the placement algorithm.
     // x=-15 clears the mock/live panel row (~±11 wide, see LivePanels)
     // with room to spare. Flat, facing +Z like every other panel — an
-    // angled yaw was tried and dropped (see git history): any tilt reads
-    // as edge-on against a flat orthographic camera, and legibility
+    // angled yaw was tried and dropped (see git history): legibility
     // matters more here than a decorative angle.
     const signature = createPanelMesh(SIGNATURE_PANEL);
     signature.position.set(-15, signature.geometry.parameters.height / 2 + 0.4, 8);
@@ -111,11 +102,7 @@ export class SceneManager {
     const { width, height } = this.getSize();
     if (width === 0 || height === 0) return;
 
-    const frustum = computeOrthoFrustum(width, height);
-    this.camera.left = frustum.left;
-    this.camera.right = frustum.right;
-    this.camera.top = frustum.top;
-    this.camera.bottom = frustum.bottom;
+    this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
 
     this.renderer.setSize(width, height, true);
@@ -164,15 +151,4 @@ export class SceneManager {
       this.container.removeChild(this.renderer.domElement);
     }
   }
-}
-
-function computeOrthoFrustum(width: number, height: number) {
-  const aspect = width / height;
-  const viewHeight = C.CAMERA_VIEW_HEIGHT;
-  return {
-    left: -viewHeight * aspect,
-    right: viewHeight * aspect,
-    top: viewHeight,
-    bottom: -viewHeight,
-  };
 }
