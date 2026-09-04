@@ -53,28 +53,62 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
 
 ### Scène 3D (première étape)
 
-- Bâtiment central : un cluster de tours de hauteurs variées sur un
-  podium commun (silhouette irrégulière façon Shinjuku/Times Square).
-  Les 4 écrans de classement (top-4 paiements — voir `GET /api/buildings`
-  plus bas) sont répartis sur le cluster plutôt qu'alignés sur une seule
-  face, d'après une référence visuelle fournie par l'utilisateur : les
-  rangs 1 et 2 sur des mâts en toiture au-dessus des deux tours les plus
-  hautes (écrans "vitrine", les plus visibles), les rangs 3 et 4 encastrés
-  à mi-hauteur sur la façade de deux tours plus basses
-  (`createCentralBuilding.ts`). Encore statique pour l'instant : ces 4
+- Bâtiment central : un cluster de tours de hauteurs variées, **chacune
+  posée directement au sol sur son propre pied** (plus de podium partagé)
+  **et à une profondeur (z) différente** — pas toutes alignées sur la
+  même ligne face caméra (`createCentralBuilding.ts`). Les deux effets
+  recherchés : que chaque tour se lise clairement comme un bâtiment à
+  part plutôt qu'un seul bloc fusionné, et une vraie sensation de
+  profondeur/parallaxe entre elles en zoomant — pas seulement une
+  silhouette qui varie en hauteur. Les 4 écrans de classement (top-4
+  paiements — voir `GET /api/buildings` plus bas) sont répartis sur le
+  cluster plutôt qu'alignés sur une seule face, d'après une référence
+  visuelle fournie par l'utilisateur : les rangs 1 et 2 sur des mâts en
+  toiture au-dessus des deux tours les plus hautes (écrans "vitrine", les
+  plus visibles), les rangs 3 et 4 encastrés à mi-hauteur sur la façade
+  de deux tours plus basses. Encore statique pour l'instant : ces 4
   emplacements affichent des données de démonstration
   (`RANK_SLOT_PLACEHOLDERS`), rien côté scène ne consomme encore
   `GET /api/buildings` — la disposition est prête, le branchement sur le
   vrai classement reste à faire.
 - Sol + grille, panneau signature "ROBY" fixe et excentré.
-- Caméra perspective fixe (position posée une fois, ne bouge jamais),
-  vue de face au niveau du sol (pas d'angle plongeant) : le scroll fait
-  varier `camera.zoom` — sur `PerspectiveCamera`, mathématiquement
-  équivalent à resserrer le FOV à position fixe (vérifié dans le code
-  source de three.js), donc un vrai zoom optique plutôt qu'un dolly qui
-  rapproche la caméra. Un FOV de base modéré (30°) garde un peu de
-  vraie profondeur/perspective sans que ce soit prononcé — l'orthographique
-  pur essayé d'abord rendait trop plat.
+- Caméra perspective à *rig* fixe (position/visée de base posées une
+  fois), vue de face au niveau du sol (pas d'angle plongeant) :
+  - Le scroll (ou le pincement à deux doigts sur tactile) fait varier
+    `camera.zoom` — sur `PerspectiveCamera`, mathématiquement équivalent
+    à resserrer le FOV à position fixe (vérifié dans le code source de
+    three.js : `tan(FOV effectif/2) = tan(FOV de base/2) / zoom`, pas une
+    simple division d'angle — une confusion entre les deux a d'ailleurs
+    provoqué un vrai bug pendant le développement, voir plus bas), donc
+    un vrai zoom optique plutôt qu'un dolly qui rapproche la caméra. Un
+    FOV de base modéré (30°) garde un peu de vraie profondeur/perspective
+    sans que ce soit prononcé — l'orthographique pur essayé d'abord
+    rendait trop plat.
+  - Le zoom arrière minimum s'adapte au ratio d'aspect de l'écran plutôt
+    que d'être une constante fixe (`CameraController.computeAspectMinZoom`) :
+    sur un écran étroit/haut (mobile), le FOV horizontal effectif à un
+    même niveau de zoom est plus étroit qu'en large desktop (même FOV
+    vertical, ratio d'aspect plus petit), ce qui coupait les côtés de la
+    scène en dézoomant au maximum sur mobile. Résolu en calculant, à
+    chaque changement de ratio d'aspect (y compris une rotation d'écran
+    en cours de session), le zoom minimum qui garde `CAMERA_OVERVIEW_HALF_WIDTH`
+    visible — évalué à la bonne profondeur (`CAMERA_OVERVIEW_CONTENT_Z`,
+    celle du panneau signature) et non à celle, arbitraire, du plan de
+    visée : la perspective fait qu'un contenu plus proche de la caméra
+    occupe plus de largeur écran par unité de monde, une confusion entre
+    les deux a produit un vrai bug en développement (le calcul semblait
+    juste sur le papier mais le panneau signature restait hors-cadre —
+    détecté en vérifiant directement si on le voyait à l'écran, pas en
+    se fiant à la formule).
+  - **Glisser-déplacer (drag-to-pan)** : la souris (clic-glisser) ou un
+    seul doigt au tactile (deux doigts reste réservé au pincement/zoom)
+    translate le *rig* caméra (position + visée ensemble, donc la
+    direction de vue ne change jamais — un mouvement de type
+    truck/pedestal, pas une orbite) pour se déplacer dans toute la scène,
+    avec un déplacement borné (`CAMERA_PAN_BOUNDS`) pour ne pas partir
+    dans le vide. Amorti différemment du zoom : le glisser suit le
+    pointeur au pixel près (`CameraController.applyDragDelta`) plutôt que
+    d'amortir en douceur, pour rester "collé" au doigt/à la souris.
 - Post-traitement global unique (`EffectComposer` + `RenderPass` + un
   `ShaderPass` custom `CRTShader` + `OutputPass`) : rendu interne basse
   résolution + upscale `NEAREST` (pixel/aliasing façon PS1), scanlines,
@@ -85,9 +119,13 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
 
 ### Mobile / tactile
 
-- Zoom au pincement (`CameraController.ts`) en plus de la molette — même
-  chemin `targetZoom`/`stepZoom`, donc même amorti (damping) et mêmes
-  bornes min/max des deux côtés.
+- Zoom/déplacement tactiles (pincement à deux doigts, glisser à un doigt)
+  en plus de la molette/souris desktop — voir la section caméra plus haut
+  pour le détail ; même logique des deux côtés (`CameraController.ts`).
+  Transition propre entre les deux gestes tactiles : un 2e doigt qui
+  rejoint un glisser en cours bascule en pincement sans saut, et relâcher
+  ce 2e doigt reprend le glisser depuis la position *actuelle* du doigt
+  restant plutôt que son ancienne position.
 - Le blocage du scroll/pull-to-refresh/pinch-zoom du navigateur
   (`touch-action`/`overscroll-behavior: none`) est posé sur le conteneur
   de la scène (`<main>` de `page.tsx`), pas globalement sur `html, body` :
@@ -114,9 +152,12 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
   moitié de la largeur réelle) — le bouton "Réserver un panneau" passait
   ainsi sur deux lignes sur téléphone étroit et débordait sur la légende.
   Fixé avec `whitespace-nowrap` sur le bouton et une légende qui
-  n'affiche que l'essentiel (zoom) en dessous du breakpoint `sm`, le
-  reste ne réapparaissant qu'à partir de `sm:` où la place ne manque
-  plus.
+  n'affiche que l'essentiel (zoom, glisser) en dessous du breakpoint
+  `sm`, le reste ne réapparaissant qu'à partir de `sm:` où la place ne
+  manque plus. Le dégagement du bouton au-dessus de la légende a dû être
+  réaugmenté (`bottom-24` → `bottom-36`) quand l'entrée "glisser" a été
+  ajoutée à la légende — revérifié aux mêmes largeurs à chaque fois plutôt
+  que supposé bon.
 
 ### Flow de paiement complet
 

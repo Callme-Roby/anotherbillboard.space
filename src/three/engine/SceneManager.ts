@@ -9,7 +9,7 @@ import * as C from "./constants";
 import { disposeObject3D } from "./disposeObject3D";
 import { LivePanels } from "./LivePanels";
 import { createPostProcessing, type PostProcessingHandle } from "./PostProcessing";
-import { sceneEvents, ZOOM_CHANGE_EVENT, type ZoomChangeDetail } from "./sceneEvents";
+import { sceneEvents, VIEW_CHANGE_EVENT, type ViewChangeDetail } from "./sceneEvents";
 
 export interface SceneManagerOptions {
   container: HTMLElement;
@@ -17,8 +17,9 @@ export interface SceneManagerOptions {
 
 /**
  * Orchestrates the single Three.js engine driving the whole scene:
- * renderer, scene graph, scroll-zoom camera, and the global CRT
- * post-processing pass. One instance per mounted `<SceneCanvas />`.
+ * renderer, scene graph, the scroll/pinch-zoom + drag-pan camera, and the
+ * global CRT post-processing pass. One instance per mounted
+ * `<SceneCanvas />`.
  */
 export class SceneManager {
   private readonly container: HTMLElement;
@@ -34,6 +35,8 @@ export class SceneManager {
   private rafId: number | null = null;
   private disposed = false;
   private lastEmittedZoom = -1;
+  private lastEmittedPanX = 0;
+  private lastEmittedPanY = 0;
 
   constructor({ container }: SceneManagerOptions) {
     this.container = container;
@@ -51,10 +54,14 @@ export class SceneManager {
       position: fixedPosition,
       lookAt: C.CAMERA_LOOK_AT,
       minZoom: C.CAMERA_MIN_ZOOM,
+      absoluteMinZoom: C.CAMERA_ABSOLUTE_MIN_ZOOM,
       maxZoom: C.CAMERA_MAX_ZOOM,
       initialZoom: C.CAMERA_INITIAL_ZOOM,
       damping: C.CAMERA_DAMPING,
       zoomSpeed: C.CAMERA_ZOOM_SPEED,
+      overviewHalfWidth: C.CAMERA_OVERVIEW_HALF_WIDTH,
+      overviewContentZ: C.CAMERA_OVERVIEW_CONTENT_Z,
+      panBounds: C.CAMERA_PAN_BOUNDS,
     });
     this.cameraController.attach(container);
 
@@ -92,9 +99,15 @@ export class SceneManager {
     // x=-15 clears the mock/live panel row (~±11 wide, see LivePanels)
     // with room to spare. Flat, facing +Z like every other panel — an
     // angled yaw was tried and dropped (see git history): legibility
-    // matters more here than a decorative angle.
+    // matters more here than a decorative angle. Position shared with
+    // CAMERA_OVERVIEW_* in constants.ts, which needs this depth to size
+    // the mobile zoom-out floor correctly — keep them in sync.
     const signature = createPanelMesh(SIGNATURE_PANEL);
-    signature.position.set(-15, signature.geometry.parameters.height / 2 + 0.4, 8);
+    signature.position.set(
+      C.SIGNATURE_PANEL_X,
+      signature.geometry.parameters.height / 2 + 0.4,
+      C.SIGNATURE_PANEL_Z,
+    );
     this.scene.add(signature);
   }
 
@@ -104,6 +117,10 @@ export class SceneManager {
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    // Aspect ratio feeds the zoom-out floor (fit CAMERA_OVERVIEW_HALF_WIDTH
+    // on any viewport, not just the desktop-tuned CAMERA_MIN_ZOOM) — must
+    // be recomputed whenever aspect changes, e.g. a phone rotating.
+    this.cameraController.handleResize();
 
     this.renderer.setSize(width, height, true);
     this.postProcessing.setSize(width, height);
@@ -115,20 +132,27 @@ export class SceneManager {
     this.timer.update();
     const delta = this.timer.getDelta();
     this.cameraController.update(delta);
-    this.emitZoomIfChanged();
+    this.emitViewChangeIfNeeded();
     this.postProcessing.render();
 
     this.rafId = requestAnimationFrame(this.animate);
   };
 
-  private emitZoomIfChanged() {
+  private emitViewChangeIfNeeded() {
     const normalized = this.cameraController.normalizedZoom;
-    if (Math.abs(normalized - this.lastEmittedZoom) > 0.0005) {
-      this.lastEmittedZoom = normalized;
-      sceneEvents.dispatchEvent(
-        new CustomEvent<ZoomChangeDetail>(ZOOM_CHANGE_EVENT, { detail: { normalized } }),
-      );
-    }
+    const pan = this.cameraController.normalizedPan;
+    const changed =
+      Math.abs(normalized - this.lastEmittedZoom) > 0.0005 ||
+      Math.abs(pan.x - this.lastEmittedPanX) > 0.0005 ||
+      Math.abs(pan.y - this.lastEmittedPanY) > 0.0005;
+    if (!changed) return;
+
+    this.lastEmittedZoom = normalized;
+    this.lastEmittedPanX = pan.x;
+    this.lastEmittedPanY = pan.y;
+    sceneEvents.dispatchEvent(
+      new CustomEvent<ViewChangeDetail>(VIEW_CHANGE_EVENT, { detail: { normalized, pan } }),
+    );
   }
 
   /** Tear down the renderer, GPU resources, and all listeners. */

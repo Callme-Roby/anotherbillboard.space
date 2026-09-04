@@ -1,5 +1,6 @@
 const ENTRIES = [
   { control: "Molette/pincement", action: "Zoom", essential: true },
+  { control: "Glisser", action: "Déplacer la vue", essential: true },
   { control: "Réserver un panneau", action: "Bouton en bas de l'écran", essential: false },
   { control: "Panneau occupé", action: "Bientôt cliquable (visite du site)", essential: false },
 ];
