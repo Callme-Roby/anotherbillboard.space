@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0d0f12;
+  --foreground: #e8e8e8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  /* Scroll is repurposed as the 3D camera zoom control (see
+     CameraController) — the page itself never scrolls. */
+  overflow: hidden;
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial,
+    sans-serif;
+}
