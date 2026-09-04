@@ -4,30 +4,30 @@ export interface GroundPosition {
 }
 
 /**
- * Placeholder plaza layout: fans panels out across an arc facing the
- * camera's default viewing direction (+Z), staggered across a few radius
- * bands. This stands in for the real placement algorithm (which will
- * fill `panels.position_x` / `position_y`, considering amount ranking,
- * category, and collision packing) — isolated here so it's a one-file
- * swap later.
+ * Placeholder plaza layout: a single row facing the camera, spaced by
+ * each panel's actual width so nothing overlaps. This stands in for the
+ * real placement algorithm (which will fill `panels.position_x` /
+ * `position_y`, considering amount ranking, category, and collision
+ * packing) — isolated here so it's a one-file swap later.
+ *
+ * A single row (rather than staggered depth/radius bands) is deliberate:
+ * the camera is level and head-on, so panels placed at different depths
+ * would occlude each other in screen space instead of visually
+ * separating the way they would under an elevated, angled camera.
  */
-export function placeholderArcLayout(
-  count: number,
-  options?: { innerRadius?: number; outerRadius?: number; spreadDegrees?: number },
+export function placeholderRowLayout(
+  widths: number[],
+  options?: { gap?: number; z?: number },
 ): GroundPosition[] {
-  const innerRadius = options?.innerRadius ?? 6;
-  const outerRadius = options?.outerRadius ?? 13;
-  const spread = ((options?.spreadDegrees ?? 150) * Math.PI) / 180;
+  const gap = options?.gap ?? 0.6;
+  const z = options?.z ?? 9;
 
-  const positions: GroundPosition[] = [];
-  for (let i = 0; i < count; i++) {
-    const t = count === 1 ? 0.5 : i / (count - 1);
-    const angle = -spread / 2 + t * spread;
-    const radius = innerRadius + ((i % 3) / 3) * (outerRadius - innerRadius);
-    positions.push({
-      x: Math.sin(angle) * radius,
-      z: Math.cos(angle) * radius,
-    });
-  }
-  return positions;
+  const totalWidth = widths.reduce((sum, w) => sum + w, 0) + gap * Math.max(0, widths.length - 1);
+  let cursor = -totalWidth / 2;
+
+  return widths.map((width) => {
+    const x = cursor + width / 2;
+    cursor += width + gap;
+    return { x, z };
+  });
 }

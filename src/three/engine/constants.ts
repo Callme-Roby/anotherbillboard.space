@@ -12,17 +12,24 @@ export const CAMERA_FOV = 45;
 export const CAMERA_NEAR = 0.1;
 export const CAMERA_FAR = 200;
 // Kept clear of the central building's base tier (6x6, front face at
-// z=3): at CAMERA_DIRECTION's pitch, distance 10 puts the camera ~5
-// units past that face instead of pressed almost against it.
+// z=3): with CAMERA_DIRECTION purely horizontal, distance == camera.z,
+// so 10 leaves a clear 7 units in front of that face.
 export const CAMERA_MIN_DISTANCE = 10;
-export const CAMERA_MAX_DISTANCE = 34;
-export const CAMERA_INITIAL_DISTANCE = 20;
+export const CAMERA_MAX_DISTANCE = 40;
+// Wide enough for the default view to fit the whole mock panel row
+// without needing to scroll out first (a level camera has less width
+// to work with than the old elevated one, since there's no downward
+// angle compressing distant width into the frame).
+export const CAMERA_INITIAL_DISTANCE = 28;
 /** Higher = snappier damping toward the scroll target (0-1 per frame @60fps). */
 export const CAMERA_DAMPING = 0.08;
 /** Wheel deltaY -> distance units. */
 export const CAMERA_ZOOM_SPEED = 0.015;
-export const CAMERA_LOOK_AT = new THREE.Vector3(0, 3, 0);
-export const CAMERA_DIRECTION = new THREE.Vector3(0, 0.55, 1).normalize();
+// Level, head-on view — camera sits at the same height as the look-at
+// target and faces it straight on (direction has no Y component), no
+// elevated/looking-down tilt.
+export const CAMERA_LOOK_AT = new THREE.Vector3(0, 2, 0);
+export const CAMERA_DIRECTION = new THREE.Vector3(0, 0, 1);
 
 // --- Post-processing ----------------------------------------------------
 // Internal render resolution as a fraction of the real viewport. The

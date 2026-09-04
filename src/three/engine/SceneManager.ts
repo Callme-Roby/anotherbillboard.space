@@ -3,8 +3,9 @@ import * as THREE from "three";
 import { createCentralBuilding } from "../objects/createCentralBuilding";
 import { createGround } from "../objects/createGround";
 import { createPanelMesh } from "../objects/createPanel";
-import { placeholderArcLayout } from "../placeholders/layout";
+import { placeholderRowLayout } from "../placeholders/layout";
 import { MOCK_PANELS, SIGNATURE_PANEL } from "../placeholders/mockPanels";
+import { sizeFromAmount } from "../placeholders/sizing";
 import { CameraController } from "./CameraController";
 import * as C from "./constants";
 import { createPostProcessing, type PostProcessingHandle } from "./PostProcessing";
@@ -86,13 +87,14 @@ export class SceneManager {
     // Panels are fixed flat planes, not camera-tracking billboards (that
     // behavior is reserved for characters/birds per spec) — they all
     // face +Z, the camera's general approach direction. Note this is
-    // deliberately *not* `mesh.lookAt(origin)`: for panels spread wide
-    // across the arc, facing the scene origin points them edge-on to the
-    // camera instead of toward it, since "toward the origin" and "toward
-    // the camera" diverge sharply once a panel sits far to either side.
+    // deliberately *not* `mesh.lookAt(origin)`: for panels spread wide,
+    // facing the scene origin points them edge-on to the camera instead
+    // of toward it, since "toward the origin" and "toward the camera"
+    // diverge sharply once a panel sits far enough to either side.
     const panelsGroup = new THREE.Group();
     panelsGroup.name = "panels";
-    const positions = placeholderArcLayout(MOCK_PANELS.length);
+    const widths = MOCK_PANELS.map((panel) => (panel.size ?? sizeFromAmount(panel.amount)).width);
+    const positions = placeholderRowLayout(widths);
     MOCK_PANELS.forEach((panel, i) => {
       const mesh = createPanelMesh(panel);
       const pos = positions[i];
@@ -102,10 +104,11 @@ export class SceneManager {
     this.scene.add(panelsGroup);
 
     // Fixed, non-purchasable, excentered — outside the placement algorithm.
-    // A modest yaw (not the ~36° first tried) keeps it near-legible instead
+    // x=-15 clears the mock row above (~±11 wide) with room to spare. A
+    // modest yaw (not the ~36° first tried) keeps it near-legible instead
     // of edge-on to the camera's fixed viewing direction.
     const signature = createPanelMesh(SIGNATURE_PANEL);
-    signature.position.set(-10, signature.geometry.parameters.height / 2 + 0.4, 8);
+    signature.position.set(-15, signature.geometry.parameters.height / 2 + 0.4, 8);
     signature.rotation.y = Math.PI / 16;
     this.scene.add(signature);
   }
