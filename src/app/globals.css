@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0d0f12;
-  --foreground: #e8e8e8;
+  /* Matches BACKGROUND_COLOR in three/engine/constants.ts — kept in sync
+     by hand, there's no shared source between CSS and the WebGL scene.
+     Mostly only visible as a brief flash before the canvas mounts, but
+     should still be the right color rather than an arbitrary one. */
+  --background: #f3efe6;
+  --foreground: #201e1a;
   /* env() falls back to 0px on devices/browsers without a safe area
      (also needs viewport.viewportFit: "cover", see layout.tsx, or iOS
      Safari reports 0 for these regardless of device). Fixed HUD

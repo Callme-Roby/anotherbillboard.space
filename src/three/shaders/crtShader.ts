@@ -4,7 +4,8 @@ import * as THREE from "three";
  * Single global post-processing pass: PS1-style pixelation (achieved by
  * rendering the scene at a low internal resolution into a NEAREST-filtered
  * render target — see PostProcessing.ts — then upscaling it here) combined
- * with a CRT screen look (scanlines, vignette, chromatic aberration).
+ * with an old-TV/CRT screen look (screen curvature, scanlines, vignette,
+ * chromatic aberration).
  *
  * Shape follows the three.js addon convention (`{ uniforms, vertexShader,
  * fragmentShader }`) so it can be passed straight into `new ShaderPass(...)`.
@@ -16,6 +17,7 @@ export const CRTShader = {
     uScanlineIntensity: { value: 0.15 },
     uVignetteStrength: { value: 0.35 },
     uAberrationStrength: { value: 0.0025 },
+    uCurvature: { value: 0.15 },
   },
 
   vertexShader: `
@@ -33,11 +35,26 @@ export const CRTShader = {
     uniform float uScanlineIntensity;
     uniform float uVignetteStrength;
     uniform float uAberrationStrength;
+    uniform float uCurvature;
 
     varying vec2 vUv;
 
     void main() {
-      vec2 uv = vUv;
+      // Barrel/screen curvature: warp toward sampling further outside
+      // [0,1] as the fragment approaches a corner (squared falloff, so
+      // screen-center stays put and the warp only really bites near the
+      // edges) — the picture reads as bulging like curved CRT glass.
+      // Outside the curved screen there's nothing to show: a black bezel,
+      // not a stretched/clamped edge or a wrapped sample.
+      vec2 rawCentered = vUv - 0.5;
+      float curveDist2 = dot(rawCentered, rawCentered);
+      vec2 uv = vUv + rawCentered * curveDist2 * uCurvature;
+
+      if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+      }
+
       vec2 centered = uv - 0.5;
       float dist = length(centered);
 

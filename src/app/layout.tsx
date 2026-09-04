@@ -20,8 +20,8 @@ export const viewport: Viewport = {
   // inset-*) reports real values instead of always 0 — used to keep the
   // fixed HUD (legend, minimap, purchase button) clear of those areas.
   viewportFit: "cover",
-  themeColor: "#0d0f12",
-  colorScheme: "dark",
+  themeColor: "#f3efe6",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -109,10 +109,23 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     dans le vide. Amorti différemment du zoom : le glisser suit le
     pointeur au pixel près (`CameraController.applyDragDelta`) plutôt que
     d'amortir en douceur, pour rester "collé" au doigt/à la souris.
+- Fond de scène blanc cassé (`BACKGROUND_COLOR`, `#f3efe6`) — bâtiments/
+  panneaux volontairement inchangés (matériaux/contours noirs déjà en
+  place gardent leur lisibilité sur fond clair, contrairement au fond
+  sombre initial).
 - Post-traitement global unique (`EffectComposer` + `RenderPass` + un
   `ShaderPass` custom `CRTShader` + `OutputPass`) : rendu interne basse
   résolution + upscale `NEAREST` (pixel/aliasing façon PS1), scanlines,
-  vignette, aberration chromatique.
+  vignette, aberration chromatique, **et courbure d'écran** (barrel
+  distortion façon verre bombé de tube cathodique) — l'image est
+  échantillonnée de plus en plus loin du centre en approchant des coins
+  (chute en carré de la distance), et tout ce qui tombe hors de cet écran
+  courbé rend en noir plutôt qu'un bord étiré/collé : ça donne à la fois
+  le bombé et la lisière noire façon boîtier de télé, avec un seul
+  paramètre (`CRT_CURVATURE_STRENGTH`). Effet secondaire bienvenu :
+  l'aberration chromatique (déjà présente) se combine avec la courbure et
+  devient plus marquée près des bords, renforçant encore l'impression de
+  vieille télé/signal analogique.
 - Minimap (bas-gauche) et légende (bas-droite), mises à jour hors du
   cycle de rendu React (event bus + DOM direct, pas de re-render à
   chaque frame de scroll).

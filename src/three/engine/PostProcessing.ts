@@ -7,6 +7,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CRTShader } from "../shaders/crtShader";
 import {
   CRT_ABERRATION_STRENGTH,
+  CRT_CURVATURE_STRENGTH,
   CRT_SCANLINE_INTENSITY,
   CRT_VIGNETTE_STRENGTH,
   INTERNAL_RESOLUTION_SCALE,
@@ -64,6 +65,7 @@ export function createPostProcessing(
   crtPass.uniforms.uScanlineIntensity.value = CRT_SCANLINE_INTENSITY;
   crtPass.uniforms.uVignetteStrength.value = CRT_VIGNETTE_STRENGTH;
   crtPass.uniforms.uAberrationStrength.value = CRT_ABERRATION_STRENGTH;
+  crtPass.uniforms.uCurvature.value = CRT_CURVATURE_STRENGTH;
   composer.addPass(crtPass);
 
   // Custom ShaderPass instances read/write raw (linear) color values and

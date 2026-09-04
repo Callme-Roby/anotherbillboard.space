@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
-/** Scene background — a dark neutral that suits the CRT/night mood. */
-export const BACKGROUND_COLOR = 0x0d0f12;
+/** Scene background — a warm off-white ("blanc cassé"). */
+export const BACKGROUND_COLOR = 0xf3efe6;
 
 // --- Camera -----------------------------------------------------------
 // Perspective, but zoomed like a real camera lens rather than dollied:
@@ -88,6 +88,12 @@ export const INTERNAL_RESOLUTION_SCALE = 0.3;
 export const CRT_SCANLINE_INTENSITY = 0.15;
 export const CRT_VIGNETTE_STRENGTH = 0.35;
 export const CRT_ABERRATION_STRENGTH = 0.0025;
+// Barrel/screen curvature — the picture bulges as if seen through curved
+// CRT glass, sampled progressively further out toward the corners (see
+// crtShader.ts). Outside the curved screen renders as a black bezel
+// rather than a stretched/clamped edge. 0 = flat/off; ~0.1-0.2 is a
+// convincing "old TV" curve without reading as a fisheye gimmick.
+export const CRT_CURVATURE_STRENGTH = 0.15;
 
 // --- Ground / plaza -----------------------------------------------------
 export const GROUND_SIZE = 80;
