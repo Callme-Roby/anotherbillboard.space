@@ -1,46 +1,47 @@
 import * as THREE from "three";
 
 export interface CameraControllerOptions {
-  minDistance: number;
-  maxDistance: number;
-  initialDistance: number;
+  position: THREE.Vector3;
   lookAt: THREE.Vector3;
-  direction: THREE.Vector3;
+  minZoom: number;
+  maxZoom: number;
+  initialZoom: number;
   /** Damping factor applied per-frame at 60fps; frame-rate independent. */
   damping: number;
   zoomSpeed: number;
 }
 
 /**
- * Scroll-driven dolly zoom. The camera always looks at a fixed target and
- * sits at `distance` along a fixed unit `direction` from it — scrolling
- * only changes that distance, smoothed with damping. Because this is a
- * genuine perspective dolly, near and far objects parallax against each
- * other automatically; there's no separate "layers" system to fake it.
+ * True (orthographic) zoom, not a dolly: the camera position is set once
+ * and never moves — scroll only ever changes `camera.zoom`, which
+ * rescales the view frustum (see OrthographicCamera.updateProjectionMatrix
+ * — verified directly against the installed three.js source: it divides
+ * the frustum by `zoom`, no repositioning involved). That's also what
+ * keeps the flat, no-perspective-foreshortening look intact at every
+ * zoom level, rather than only at one particular distance.
  */
 export class CameraController {
-  private readonly camera: THREE.PerspectiveCamera;
-  private readonly lookAtTarget: THREE.Vector3;
-  private readonly direction: THREE.Vector3;
-  private readonly minDistance: number;
-  private readonly maxDistance: number;
+  private readonly camera: THREE.OrthographicCamera;
+  private readonly minZoom: number;
+  private readonly maxZoom: number;
   private readonly damping: number;
   private readonly zoomSpeed: number;
-  private distance: number;
-  private targetDistance: number;
+  private zoom: number;
+  private targetZoom: number;
   private element: HTMLElement | null = null;
 
-  constructor(camera: THREE.PerspectiveCamera, options: CameraControllerOptions) {
+  constructor(camera: THREE.OrthographicCamera, options: CameraControllerOptions) {
     this.camera = camera;
-    this.lookAtTarget = options.lookAt.clone();
-    this.direction = options.direction.clone().normalize();
-    this.minDistance = options.minDistance;
-    this.maxDistance = options.maxDistance;
+    this.minZoom = options.minZoom;
+    this.maxZoom = options.maxZoom;
     this.damping = options.damping;
     this.zoomSpeed = options.zoomSpeed;
-    this.distance = options.initialDistance;
-    this.targetDistance = options.initialDistance;
-    this.applyPosition();
+    this.zoom = options.initialZoom;
+    this.targetZoom = options.initialZoom;
+
+    this.camera.position.copy(options.position);
+    this.camera.lookAt(options.lookAt);
+    this.applyZoom();
   }
 
   attach(element: HTMLElement) {
@@ -57,27 +58,29 @@ export class CameraController {
     // Scroll is fully repurposed as the zoom control, so the page itself
     // must never scroll underneath it.
     event.preventDefault();
-    const next = this.targetDistance + event.deltaY * this.zoomSpeed;
-    this.targetDistance = THREE.MathUtils.clamp(next, this.minDistance, this.maxDistance);
+    // Exponential, not linear: each wheel tick multiplies the zoom by a
+    // constant ratio, so the control feels equally responsive whether
+    // zoomed in or out (a fixed additive step would feel huge at low
+    // zoom and negligible at high zoom).
+    const factor = Math.exp(-event.deltaY * this.zoomSpeed);
+    this.targetZoom = THREE.MathUtils.clamp(this.targetZoom * factor, this.minZoom, this.maxZoom);
   };
 
-  /** Advance the damped distance toward its target. `delta` in seconds. */
+  /** Advance the damped zoom toward its target. `delta` in seconds. */
   update(delta: number) {
     const lerpFactor = 1 - Math.pow(1 - this.damping, delta * 60);
-    this.distance = THREE.MathUtils.lerp(this.distance, this.targetDistance, lerpFactor);
-    this.applyPosition();
+    this.zoom = THREE.MathUtils.lerp(this.zoom, this.targetZoom, lerpFactor);
+    this.applyZoom();
   }
 
-  private applyPosition() {
-    this.camera.position
-      .copy(this.lookAtTarget)
-      .addScaledVector(this.direction, this.distance);
-    this.camera.lookAt(this.lookAtTarget);
+  private applyZoom() {
+    this.camera.zoom = this.zoom;
+    this.camera.updateProjectionMatrix();
   }
 
   /** 0 = fully zoomed out, 1 = fully zoomed in — for the minimap indicator. */
   get normalizedZoom(): number {
-    const t = (this.distance - this.minDistance) / (this.maxDistance - this.minDistance);
-    return 1 - THREE.MathUtils.clamp(t, 0, 1);
+    const t = (this.zoom - this.minZoom) / (this.maxZoom - this.minZoom);
+    return THREE.MathUtils.clamp(t, 0, 1);
   }
 }

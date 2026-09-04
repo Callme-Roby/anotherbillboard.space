@@ -53,12 +53,16 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
 
 ### Scène 3D (première étape)
 
-- Bâtiment central à paliers avec 4 écrans de classement (alimentés par
-  les vrais top-4 paiements une fois qu'il y en a — voir plus bas).
-- Sol + grille, panneau signature "Built by Roby" fixe et excentré.
-- Caméra en dolly au scroll (zoom avant/arrière progressif, amorti),
-  vue de face au niveau du sol (pas d'angle plongeant) — parallaxe
-  naturelle par perspective, pas de système de couches séparé.
+- Bâtiment central : un cluster de tours de hauteurs variées sur un
+  podium commun (silhouette irrégulière façon Shinjuku/Times Square),
+  avec 4 écrans de classement sur la façade du podium (alimentés par les
+  vrais top-4 paiements une fois qu'il y en a — voir plus bas).
+- Sol + grille, panneau signature "ROBY" fixe et excentré.
+- Caméra orthographique fixe, vue de face au niveau du sol (pas d'angle
+  plongeant) : le scroll fait varier `camera.zoom` (un vrai zoom optique,
+  vérifié directement dans le code source de three.js — la caméra ne se
+  déplace jamais), pas un dolly qui rapproche la caméra. Perspective
+  plate, sans déformation, à tous les niveaux de zoom.
 - Post-traitement global unique (`EffectComposer` + `RenderPass` + un
   `ShaderPass` custom `CRTShader` + `OutputPass`) : rendu interne basse
   résolution + upscale `NEAREST` (pixel/aliasing façon PS1), scanlines,

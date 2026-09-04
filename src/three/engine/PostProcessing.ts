@@ -41,7 +41,7 @@ function internalResolution(width: number, height: number) {
 export function createPostProcessing(
   renderer: THREE.WebGLRenderer,
   scene: THREE.Scene,
-  camera: THREE.PerspectiveCamera,
+  camera: THREE.Camera,
   width: number,
   height: number,
 ): PostProcessingHandle {

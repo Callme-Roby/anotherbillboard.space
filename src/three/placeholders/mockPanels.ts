@@ -45,6 +45,11 @@ export const SIGNATURE_PANEL: PlaceholderPanel = {
   id: "signature-built-by-roby",
   amount: 0,
   color: "#3a3d47",
-  label: "Built by Roby",
-  size: { width: 2.6, height: 1 },
+  // Short on purpose: a full "Built by Roby" sentence doesn't survive
+  // the deliberately low internal render resolution (see PostProcessing)
+  // at this panel's small, off-to-the-side size — confirmed by actually
+  // looking at the render, not assumed. A terse signature mark reads
+  // better here anyway.
+  label: "ROBY",
+  size: { width: 3, height: 1.4 },
 };
