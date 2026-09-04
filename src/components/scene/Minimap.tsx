@@ -8,7 +8,7 @@ import { sceneEvents, ZOOM_CHANGE_EVENT, type ZoomChangeDetail } from "@/three/e
  * Transparent rectangle, bottom-left: outer box is the overall plaza
  * bounds, inner box is the area currently visible at the camera's zoom
  * level. Updated imperatively from scene events (see sceneEvents.ts) so
- * scroll-driven zoom never triggers a React re-render here.
+ * scroll/pinch-driven zoom never triggers a React re-render here.
  */
 export function Minimap() {
   const indicatorRef = useRef<HTMLDivElement>(null);
@@ -29,7 +29,7 @@ export function Minimap() {
 
   return (
     <div
-      className="pointer-events-none fixed bottom-4 left-4 h-24 w-32 overflow-hidden border border-white/30 bg-black/30 backdrop-blur-sm"
+      className="pointer-events-none fixed bottom-[calc(1rem+var(--safe-bottom))] left-[calc(1rem+var(--safe-left))] h-16 w-24 overflow-hidden border border-white/30 bg-black/30 backdrop-blur-sm sm:h-24 sm:w-32"
       aria-hidden="true"
     >
       <div

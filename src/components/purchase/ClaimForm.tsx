@@ -91,7 +91,7 @@ export function ClaimForm() {
           value={url}
           onChange={(event) => setUrl(event.target.value)}
           placeholder="https://votresite.com"
-          className="w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm text-white outline-none focus:border-white/50"
+          className="w-full rounded border border-white/20 bg-black/40 px-2 py-2.5 text-base text-white outline-none focus:border-white/50"
         />
       </label>
 
@@ -100,7 +100,7 @@ export function ClaimForm() {
       <button
         type="submit"
         disabled={status === "loading"}
-        className="w-full rounded bg-white py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="w-full rounded bg-white py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {status === "loading" ? "Validation…" : "Valider mon panneau"}
       </button>

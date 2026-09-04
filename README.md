@@ -74,6 +74,41 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
   cycle de rendu React (event bus + DOM direct, pas de re-render à
   chaque frame de scroll).
 
+### Mobile / tactile
+
+- Zoom au pincement (`CameraController.ts`) en plus de la molette — même
+  chemin `targetZoom`/`stepZoom`, donc même amorti (damping) et mêmes
+  bornes min/max des deux côtés.
+- Le blocage du scroll/pull-to-refresh/pinch-zoom du navigateur
+  (`touch-action`/`overscroll-behavior: none`) est posé sur le conteneur
+  de la scène (`<main>` de `page.tsx`), pas globalement sur `html, body` :
+  la valeur *effective* de `touch-action` se calcule en remontant les
+  ancêtres de l'élément touché (vérifié dans la spec), donc pas besoin de
+  la déclarer sur la racine — ce qui laisse `/panneau/nouveau` (formulaire
+  post-paiement) défiler normalement, y compris sur un petit écran avec
+  le clavier ouvert.
+- `viewport.viewportFit: "cover"` (`layout.tsx`) + variables
+  `env(safe-area-inset-*)` (`globals.css`) : les éléments fixes (minimap,
+  légende, bouton, modal) se calent contre l'encoche/la barre
+  d'accueil au lieu de passer dessous.
+- Champs de formulaire en `text-base` (16px) : en dessous, iOS Safari
+  zoome automatiquement la page au focus d'un champ — un comportement du
+  navigateur, pas un bug applicatif, mais qui casse le layout si on ne
+  s'en prémunit pas.
+- Cibles tactiles agrandies (~44px, boutons/inputs/checkbox) et modal
+  d'achat en `max-h-[90vh] overflow-y-auto` pour rester utilisable sur un
+  petit viewport.
+- Piège relevé en vérifiant au Playwright sur plusieurs largeurs
+  (320-414px) : un élément `fixed` centré en `left-1/2` +
+  `-translate-x-1/2` calcule sa largeur *avant* la translation, sur
+  l'espace entre le repère des 50 % et le bord droit du viewport (donc la
+  moitié de la largeur réelle) — le bouton "Réserver un panneau" passait
+  ainsi sur deux lignes sur téléphone étroit et débordait sur la légende.
+  Fixé avec `whitespace-nowrap` sur le bouton et une légende qui
+  n'affiche que l'essentiel (zoom) en dessous du breakpoint `sm`, le
+  reste ne réapparaissant qu'à partir de `sm:` où la place ne manque
+  plus.
+
 ### Flow de paiement complet
 
 1. **Achat** : bouton "Réserver un panneau" → modal (montant libre,

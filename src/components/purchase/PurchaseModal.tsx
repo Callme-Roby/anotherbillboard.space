@@ -74,7 +74,7 @@ export function PurchaseModal({ onClose }: PurchaseModalProps) {
       aria-modal="true"
       aria-labelledby="purchase-modal-title"
     >
-      <div className="w-full max-w-sm rounded border border-white/20 bg-[#14161a] p-5 font-mono text-sm text-white/90 shadow-xl">
+      <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded border border-white/20 bg-[#14161a] p-5 font-mono text-sm text-white/90 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 id="purchase-modal-title" className="text-base font-semibold text-white">
             Réserver un panneau
@@ -82,7 +82,7 @@ export function PurchaseModal({ onClose }: PurchaseModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="text-white/50 transition-colors hover:text-white"
+            className="-m-2 p-2 text-white/50 transition-colors hover:text-white"
             aria-label="Fermer"
           >
             ✕
@@ -97,7 +97,7 @@ export function PurchaseModal({ onClose }: PurchaseModalProps) {
               inputMode="decimal"
               value={amountEuros}
               onChange={(event) => setAmountEuros(event.target.value)}
-              className="w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-white outline-none focus:border-white/50"
+              className="w-full rounded border border-white/20 bg-black/40 px-2 py-2.5 text-base text-white outline-none focus:border-white/50"
             />
           </label>
 
@@ -106,7 +106,7 @@ export function PurchaseModal({ onClose }: PurchaseModalProps) {
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
-              className="w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-white outline-none focus:border-white/50"
+              className="w-full rounded border border-white/20 bg-black/40 px-2 py-2.5 text-base text-white outline-none focus:border-white/50"
             >
               <option value="">—</option>
               {PANEL_CATEGORIES.map((value) => (
@@ -124,15 +124,16 @@ export function PurchaseModal({ onClose }: PurchaseModalProps) {
               value={ownerEmail}
               onChange={(event) => setOwnerEmail(event.target.value)}
               placeholder="vous@exemple.com"
-              className="w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-white outline-none focus:border-white/50"
+              className="w-full rounded border border-white/20 bg-black/40 px-2 py-2.5 text-base text-white outline-none focus:border-white/50"
             />
           </label>
 
-          <label className="flex items-center gap-2 text-white/60">
+          <label className="flex items-center gap-2 py-1 text-white/60">
             <input
               type="checkbox"
               checked={notifyOnOutgrown}
               onChange={(event) => setNotifyOnOutgrown(event.target.checked)}
+              className="h-4 w-4 shrink-0"
             />
             M&rsquo;avertir par email si mon panneau se fait dépasser
           </label>
@@ -142,7 +143,7 @@ export function PurchaseModal({ onClose }: PurchaseModalProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded bg-white py-2 font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="w-full rounded bg-white py-3 font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {loading ? "Redirection…" : "Payer et réserver"}
           </button>

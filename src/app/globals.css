@@ -3,6 +3,14 @@
 :root {
   --background: #0d0f12;
   --foreground: #e8e8e8;
+  /* env() falls back to 0px on devices/browsers without a safe area
+     (also needs viewport.viewportFit: "cover", see layout.tsx, or iOS
+     Safari reports 0 for these regardless of device). Fixed HUD
+     elements pad against this instead of a flat offset so they clear a
+     notch or home-indicator bar instead of sitting under it. */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 @theme inline {
@@ -14,9 +22,6 @@ html,
 body {
   height: 100%;
   margin: 0;
-  /* Scroll is repurposed as the 3D camera zoom control (see
-     CameraController) — the page itself never scrolls. */
-  overflow: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family:
