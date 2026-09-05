@@ -63,6 +63,12 @@ export interface CrowdMember {
   offsetX: number;
   /** Stays at `homeX` and ignores the pointer entirely. */
   anchored?: boolean;
+  /**
+   * Personal walking speed, around 1. Without it the whole crowd sets
+   * off and arrives on the same frame, which reads as a formation being
+   * commanded rather than as people going somewhere.
+   */
+  pace: number;
   /** Worn on the head — the colour of the panel this person belongs to. */
   accent: THREE.Color;
 }
@@ -108,6 +114,7 @@ export function placeCharacter(
     height: CHARACTER_HEIGHT * heightJitter,
     variant: hash >>> 9,
     offsetX,
+    pace: 0.72 + (((hash >>> 12) % 16) / 15) * 0.6,
     accent,
   };
 }

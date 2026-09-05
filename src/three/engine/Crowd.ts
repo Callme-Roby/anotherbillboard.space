@@ -6,6 +6,10 @@ import {
   writeCharacter,
 } from "../objects/createCharacter";
 
+function randomHold(): number {
+  return WANDER_HOLD_MIN_S + Math.random() * (WANDER_HOLD_MAX_S - WANDER_HOLD_MIN_S);
+}
+
 /** Structural black, same as every silhouette in the scene. */
 const INK_COLOR = 0x0a0a0a;
 
@@ -25,15 +29,39 @@ const MAX_YAW = 0.5;
  * at the very edges, and buys the guarantee that nobody ever walks out
  * of frame.
  */
-const POINTER_INSET = 0.8;
+const POINTER_INSET = 0.74;
 /** Below this, treat everyone as arrived and stop rewriting the buffers. */
 const SETTLED_EPSILON = 0.0005;
+
+/**
+ * How far someone drifts from their place in the group, in world units,
+ * and how long they hold a given spot before picking another.
+ *
+ * This is what keeps the crowd from re-forming the same shape every
+ * time: the base offsets alone put everyone back in an identical
+ * arrangement at every regroup, which reads as a formation rather than
+ * as people. Re-rolled at random — unlike a person's *identity* (build,
+ * pose, depth, side), which stays hash-derived so the LOD refetch can't
+ * reshuffle it, this is transient motion and has nothing to stay stable
+ * for.
+ */
+const WANDER_RANGE = 0.55;
+const WANDER_DEPTH_RANGE = 0.5;
+const WANDER_HOLD_MIN_S = 1.8;
+const WANDER_HOLD_MAX_S = 5.5;
 
 interface WalkState {
   x: number;
   phase: number;
   gait: number;
   yaw: number;
+  /** Current drift from the base offset, and where it is heading. */
+  wanderX: number;
+  wanderTargetX: number;
+  wanderZ: number;
+  wanderTargetZ: number;
+  /** Seconds until this person picks a new spot. */
+  holdFor: number;
 }
 
 /**
@@ -92,7 +120,18 @@ export class Crowd {
       if (this.states.has(member.id)) continue;
       // New arrivals start standing at home rather than sliding in from
       // wherever the crowd happens to be looking.
-      this.states.set(member.id, { x: member.homeX, phase: 0, gait: 0, yaw: 0 });
+      this.states.set(member.id, {
+        x: member.homeX,
+        phase: 0,
+        gait: 0,
+        yaw: 0,
+        wanderX: 0,
+        wanderTargetX: 0,
+        wanderZ: 0,
+        wanderTargetZ: 0,
+        // Staggered from the start, so they don't all shift at once.
+        holdFor: randomHold() * Math.random(),
+      });
     }
 
     this.ensureCapacity(members.length);
@@ -130,12 +169,29 @@ export class Crowd {
       const state = this.states.get(member.id);
       if (!state) continue;
 
+      // Everyone shifts around on their own clock, so the group keeps
+      // rearranging instead of snapping back to one fixed shape.
+      state.holdFor -= delta;
+      if (state.holdFor <= 0) {
+        state.holdFor = randomHold();
+        state.wanderTargetX = (Math.random() * 2 - 1) * WANDER_RANGE;
+        state.wanderTargetZ = (Math.random() * 2 - 1) * WANDER_DEPTH_RANGE;
+      }
+      // Eased far more slowly than the walk itself: a drift you can see
+      // happening is a fidget, not a crowd settling.
+      const drift = 1 - Math.pow(1 - DAMPING * 0.25, delta * 60);
+      state.wanderX += (state.wanderTargetX - state.wanderX) * drift;
+      state.wanderZ += (state.wanderTargetZ - state.wanderZ) * drift;
+
+      const z = member.z + (member.anchored ? 0 : state.wanderZ);
+
       let target = member.homeX;
       if (!member.anchored && towardScene) {
-        const along = (member.z - this.cameraPosition.z) / this.rayDirection.z;
-        target = this.cameraPosition.x + this.rayDirection.x * along + member.offsetX;
+        const along = (z - this.cameraPosition.z) / this.rayDirection.z;
+        target =
+          this.cameraPosition.x + this.rayDirection.x * along + member.offsetX + state.wanderX;
       }
-      const step = (target - state.x) * follow;
+      const step = (target - state.x) * follow * member.pace;
       state.x += step;
 
       if (Math.abs(step) > SETTLED_EPSILON) moved = true;
@@ -177,7 +233,7 @@ export class Crowd {
         index * CHARACTER_SEGMENTS * 2,
         {
           x: state.x,
-          z: member.z,
+          z: member.z + (member.anchored ? 0 : state.wanderZ),
           height: member.height,
           variant: member.variant,
           phase: state.phase,

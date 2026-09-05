@@ -222,6 +222,17 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     (`POINTER_INSET`) : la foule se tient *autour* du curseur, donc un
     centre poussé jusqu'au bord ferait sortir sa moitié extérieure de
     l'écran.
+  - **Le groupe se réorganise en permanence.** Chacun dérive autour de sa
+    place sur son propre rythme, en x comme en profondeur, et repique un
+    nouvel écart à intervalles irréguliers ; les allures varient aussi
+    d'une personne à l'autre, sinon toute la foule part et arrive sur la
+    même image, ce qui lit comme une formation au commandement plutôt
+    que comme des gens qui vont quelque part. Les écarts de base seuls
+    remettaient tout le monde exactement dans la même disposition à
+    chaque regroupement. Cette dérive-là est **tirée au hasard**, à
+    l'inverse de l'*identité* d'une personne (carrure, pose, profondeur,
+    côté), qui reste dérivée du hash pour que le refetch LOD ne la
+    rebatte pas : un mouvement transitoire n'a rien à garder de stable.
   - **Ils marchent** pour y aller. Le pas avance avec la distance
     réellement parcourue et non avec le temps : on s'arrête, les jambes
     s'arrêtent — c'est toute la différence entre marcher et piétiner sur
