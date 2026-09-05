@@ -49,6 +49,47 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
 | `npm run db:studio`      | UI d'inspection de la base (Drizzle Studio)              |
 | `npm run db:seed`        | Peuple `buildings` (bâtiment central + paliers) — idempotent, ne fait rien si déjà peuplée |
 
+## Mise en ligne
+
+Rien de la chaîne de paiement (Checkout -> webhook -> claim -> scraping ->
+placement -> diffusion) n'a encore tourné : il n'y a jamais eu de base ni
+de clés. L'ordre ci-dessous est celui des dépendances, pas une
+préférence — chaque étape a besoin de la précédente.
+
+1. **Base Neon.** Créer un projet sur neon.tech, copier la chaîne de
+   connexion dans `.env.local` (`DATABASE_URL`).
+2. **Créer et peupler les tables**, en local, contre cette base :
+   `npm run db:push` puis `npm run db:seed`. Le seed est idempotent.
+3. **Stripe en mode test.** `STRIPE_SECRET_KEY` depuis Developers -> API
+   keys. Aucune clé publiable n'est nécessaire : le checkout redirige
+   vers l'URL hébergée de la session, il n'y a pas de Stripe.js côté
+   client.
+4. **Vérifier la chaîne en local avant de déployer**, avec le CLI Stripe :
+   `stripe listen --forward-to localhost:3000/api/webhooks/stripe`. Il
+   affiche un `whsec_...` à mettre dans `STRIPE_WEBHOOK_SECRET`. C'est le
+   seul moment où l'on peut déboguer le webhook sans passer par un
+   déploiement. Payer avec la carte de test `4242 4242 4242 4242`, puis
+   suivre le retour sur `/panneau/nouveau?session_id=...` qui déclenche
+   le claim.
+5. **Déployer sur Vercel** : importer le dépôt, choisir la branche de
+   production, reporter les variables d'environnement. Le site tourne
+   sans Pusher ni Resend (tout est "lazy" et tombe en repli propre) — on
+   peut les ajouter après.
+6. **Webhook de production.** Il faut l'URL du déploiement pour créer
+   l'endpoint Stripe (`https://…/api/webhooks/stripe`,
+   `checkout.session.completed`), et son *signing secret* pour que le
+   webhook fonctionne : donc déployer d'abord, ajouter
+   `STRIPE_WEBHOOK_SECRET` ensuite, puis redéployer. C'est l'oeuf et la
+   poule, pas un oubli.
+7. **Pusher** (temps réel) et **Resend** (email) ensuite, puis le nom de
+   domaine.
+
+Note : `drizzle-kit` et le seed ne lisent aucun fichier d'environnement
+d'eux-mêmes ; ils passent par `loadEnvConfig` de Next (voir
+`drizzle.config.ts`), donc ils voient exactement ce que voit `next dev`.
+Sans cela `db:push` échouait sur une url vide et le seed tournait
+silencieusement contre la chaîne de connexion de repli.
+
 ## Ce qui est fait
 
 ### Scène 3D (première étape)
