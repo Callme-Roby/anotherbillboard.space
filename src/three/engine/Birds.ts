@@ -1,7 +1,6 @@
 import * as THREE from "three";
 
-import { type Bird, BIRD_WINGSPAN, createBird } from "../objects/createBird";
-import { PERCHES, type PerchSpot } from "../objects/createCentralBuilding";
+import { type Bird, BIRD_WINGSPAN, createBird, type PerchSpot } from "../objects/createBird";
 
 /** Hard ceiling on a flock, per the design: never a swarm. */
 const MAX_FLOCK_SIZE = 3;
@@ -70,10 +69,13 @@ const YAW_TOWARD_HEADING = 0.5;
 // --- Landing flights ------------------------------------------------------
 /** One flight in this many comes in to land instead of passing through. */
 const PERCH_EVERY = 3;
-const APPROACH_S = 3.6;
+const APPROACH_S = 4.4;
+/** How far out a landing flight starts, and carries on to, from its perch. */
+const APPROACH_RUN = 15;
+const DEPARTURE_RUN = 17;
 /** How long they stay put once down. */
 const PERCH_S = 5;
-const DEPARTURE_S = 3.2;
+const DEPARTURE_S = 3.9;
 /** Gap between birds sharing a perch, so they line up along its edge. */
 const PERCH_SPACING = 0.4;
 /**
@@ -87,8 +89,22 @@ const PERCH_LIFT = BIRD_WINGSPAN * 0.3;
 const APPROACH_ARC = 0.9;
 /** Wings held slightly drooped when settled, rather than stiffly level. */
 const PERCHED_WING_ANGLE = -0.13;
-/** How far the wings fold in once down — see Bird.setWingSpread. */
-const PERCHED_WING_SPREAD = 0.4;
+/**
+ * How far the wings fold in once down — see Bird.setWingSpread. Tucked
+ * in further than a first pass at 0.4, which still read as a bird
+ * holding its wings out while sitting still.
+ */
+const PERCHED_WING_SPREAD = 0.2;
+/**
+ * Landing and taking off are beaten only slightly harder than cruising.
+ * A first pass ran up to 1.7x the crossing rate, which read as panic
+ * rather than as a bird putting itself down — the flapping *is* what
+ * makes a landing look nervous, more than the trajectory does.
+ */
+const APPROACH_FLAP_GAIN = 0.2;
+const DEPARTURE_FLAP_GAIN = 0.25;
+/** How fast a settled bird looks around. Slow: it is resting, not twitching. */
+const PERCHED_IDLE_HZ = 0.45;
 /** Nose-up posture when settled: perched birds stand, they don't glide. */
 const PERCHED_PITCH = -0.4;
 
@@ -103,6 +119,13 @@ const IN_VIEW_BOUND = 0.94;
 type Phase = "waiting" | "crossing" | "approach" | "perched" | "departure";
 
 export interface BirdsOptions {
+  /**
+   * Everywhere the flock may land. Passed in rather than imported so the
+   * flock doesn't need to know what the scene is made of — the caller
+   * assembles the skyline's perches and the signature sign's into one
+   * list (see SceneManager).
+   */
+  perches: PerchSpot[];
   /**
    * Fired when a flock comes into view — including when it was already
    * flying and a zoom brought it into frame, since the test runs against
@@ -133,6 +156,14 @@ export class Birds {
   private readonly to = new THREE.Vector3();
 
   private flightIndex = 0;
+  /**
+   * Counts landings only, so perches cycle 0, 1, 2, … in order. Indexing
+   * them by `flightIndex` instead worked only by the accident that 3
+   * (PERCH_EVERY) and the perch count happened to be coprime: change
+   * either — add one perch, land more often — and the flock would loop
+   * over a subset of them forever, never visiting the rest.
+   */
+  private landingIndex = 0;
   private phase: Phase = "waiting";
   /** Seconds spent in the current phase. */
   private phaseTime = 0;
@@ -148,13 +179,16 @@ export class Birds {
   private gap = FLIGHT_GAPS[0];
   private formation = FORMATIONS[0];
   private activeCount = 0;
-  private perch: PerchSpot = PERCHES[0];
+  private readonly perches: PerchSpot[];
+  private perch: PerchSpot;
 
   private wasInView = false;
   private lastCallAt = Number.NEGATIVE_INFINITY;
 
-  constructor(options: BirdsOptions = {}) {
+  constructor(options: BirdsOptions) {
     this.onEnterView = options.onEnterView;
+    this.perches = options.perches;
+    this.perch = this.perches[0];
 
     this.group = new THREE.Group();
     this.group.name = "birds";
@@ -212,7 +246,6 @@ export class Birds {
     this.speed = SPEEDS[n % SPEEDS.length];
     this.gap = FLIGHT_GAPS[n % FLIGHT_GAPS.length];
     this.direction = n % 2 === 0 ? 1 : -1;
-    this.perch = PERCHES[n % PERCHES.length];
     this.activeCount = this.formation.length;
 
     this.travelled = 0;
@@ -221,7 +254,12 @@ export class Birds {
       bird.group.visible = i < this.activeCount;
     });
 
-    this.enter(n % PERCH_EVERY === 0 ? "approach" : "crossing");
+    const landing = n % PERCH_EVERY === 0;
+    if (landing) {
+      this.perch = this.perches[this.landingIndex % this.perches.length];
+      this.landingIndex++;
+    }
+    this.enter(landing ? "approach" : "crossing");
   }
 
   private endFlight(): void {
@@ -283,8 +321,8 @@ export class Birds {
       bird.group.rotation.y = this.direction * YAW_TOWARD_HEADING * (1 - eased);
       // Flaring: nose comes up as they settle onto the perch.
       bird.group.rotation.x = 0.35 * eased;
-      // Beating harder the closer they get — braking, not cruising.
-      this.animateWings(bird, i, FLAP_HZ * (1 + eased * 0.6), BANK_AMPLITUDE * (1 - eased));
+      // Beating a little harder the closer they get — braking gently.
+      this.animateWings(bird, i, FLAP_HZ * (1 + eased * APPROACH_FLAP_GAIN), BANK_AMPLITUDE * (1 - eased));
     });
 
     if (t >= 1) this.enter("perched");
@@ -298,13 +336,13 @@ export class Birds {
       bird.group.position.copy(this.to);
       // Each bird looks around on its own slow rhythm — the only thing
       // separating "perched" from "three models parked on a roof".
-      const idle = Math.sin(this.elapsed * 0.9 + i * 1.7);
-      bird.group.rotation.y = idle * 0.35;
+      const idle = Math.sin(this.elapsed * PERCHED_IDLE_HZ + i * 1.7);
+      bird.group.rotation.y = idle * 0.28;
       bird.group.rotation.x = PERCHED_PITCH;
       bird.group.rotation.z = 0;
       bird.setWingSpread(PERCHED_WING_SPREAD);
-      // Mostly still, with the occasional half-second wing shuffle.
-      bird.setWingAngle(PERCHED_WING_ANGLE + Math.max(0, idle - 0.93) * 1.4);
+      // Mostly still, with an occasional small wing shuffle.
+      bird.setWingAngle(PERCHED_WING_ANGLE + Math.max(0, idle - 0.96) * 0.9);
     });
 
     if (this.phaseTime >= PERCH_S) this.enter("departure");
@@ -325,7 +363,12 @@ export class Birds {
       bird.group.rotation.y = this.direction * YAW_TOWARD_HEADING * eased;
       // Nose up on the climb out, levelling as they get going.
       bird.group.rotation.x = -0.3 * (1 - eased);
-      this.animateWings(bird, i, FLAP_HZ * (1.7 - eased * 0.7), BANK_AMPLITUDE * eased);
+      this.animateWings(
+        bird,
+        i,
+        FLAP_HZ * (1 + DEPARTURE_FLAP_GAIN * (1 - eased)),
+        BANK_AMPLITUDE * eased,
+      );
     });
 
     if (t >= 1) this.endFlight();
@@ -349,9 +392,16 @@ export class Birds {
     out.set(this.perch.x + spread, this.perch.y + PERCH_LIFT, this.perch.z);
   }
 
+  /**
+   * Both ends of a landing flight are measured *from the perch*, not from
+   * fixed points in the world: an absolute entry point works only while
+   * every perch happens to sit near the middle of the scene, and sends
+   * the flock flying backwards into an off-centre one (the signature
+   * sign at x=-15 is exactly that case).
+   */
   private entryPoint(offset: { x: number; y: number; z: number }, out: THREE.Vector3): void {
     out.set(
-      -this.direction * (FLIGHT_HALF_SPAN * 0.6) + offset.x * this.direction,
+      this.perch.x - this.direction * APPROACH_RUN + offset.x * this.direction,
       this.altitude + offset.y,
       this.perch.z + offset.z - 2.5,
     );
@@ -359,7 +409,7 @@ export class Birds {
 
   private exitPoint(offset: { x: number; y: number; z: number }, out: THREE.Vector3): void {
     out.set(
-      this.direction * (FLIGHT_HALF_SPAN * 0.7) + offset.x * this.direction,
+      this.perch.x + this.direction * DEPARTURE_RUN + offset.x * this.direction,
       this.altitude + 1.4 + offset.y,
       this.perch.z + offset.z - 2,
     );

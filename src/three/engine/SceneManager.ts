@@ -1,8 +1,9 @@
 import * as THREE from "three";
 
-import { createCentralBuilding } from "../objects/createCentralBuilding";
+import type { PerchSpot } from "../objects/createBird";
+import { createCentralBuilding, SKYLINE_PERCHES } from "../objects/createCentralBuilding";
 import { createGround } from "../objects/createGround";
-import { createGroundBillboard } from "../objects/createGroundBillboard";
+import { createGroundBillboard, groundBillboardPerchY } from "../objects/createGroundBillboard";
 import { createPanelMesh } from "../objects/createPanel";
 import { SIGNATURE_PANEL } from "../placeholders/mockPanels";
 import { type BirdCall, createBirdCall } from "./birdCall";
@@ -80,12 +81,19 @@ export class SceneManager {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
 
-    this.buildScene();
+    const signaturePerch = this.buildScene();
 
     // The flock and its call are separate concerns wired together here,
-    // so the flock stays silent (and testable) on its own.
+    // so the flock stays silent (and testable) on its own. The signature
+    // sign joins the skyline's perches because it is the one ground
+    // panel that is permanent: every other one comes and goes with the
+    // LOD refetch (see LivePanels), which would leave a bird that landed
+    // on one standing in mid-air.
     this.birdCall = createBirdCall();
-    this.birds = new Birds({ onEnterView: () => this.birdCall.play() });
+    this.birds = new Birds({
+      perches: [...SKYLINE_PERCHES, signaturePerch],
+      onEnterView: () => this.birdCall.play(),
+    });
     this.scene.add(this.birds.group);
 
     this.livePanels = new LivePanels();
@@ -105,7 +113,8 @@ export class SceneManager {
     };
   }
 
-  private buildScene() {
+  /** Returns the signature sign's perch — see the constructor. */
+  private buildScene(): PerchSpot {
     this.scene.add(createGround());
 
     const centralBuilding = createCentralBuilding();
@@ -121,12 +130,21 @@ export class SceneManager {
     // the mobile zoom-out floor correctly — keep them in sync. On its own
     // stand like every other ground panel (createGroundBillboard), not
     // resting flush on the ground.
-    const signature = createGroundBillboard(createPanelMesh(SIGNATURE_PANEL), {
+    const signatureMesh = createPanelMesh(SIGNATURE_PANEL);
+    const signature = createGroundBillboard(signatureMesh, {
       seed: SIGNATURE_PANEL.id,
       accent: SIGNATURE_PANEL.color,
     });
     signature.position.set(C.SIGNATURE_PANEL_X, 0, C.SIGNATURE_PANEL_Z);
     this.scene.add(signature);
+
+    // Read back off the built mesh rather than off SIGNATURE_PANEL.size,
+    // so the perch tracks whatever size the panel actually ended up.
+    return {
+      x: C.SIGNATURE_PANEL_X,
+      y: groundBillboardPerchY(signatureMesh.geometry.parameters.height),
+      z: C.SIGNATURE_PANEL_Z,
+    };
   }
 
   private handleResize = () => {

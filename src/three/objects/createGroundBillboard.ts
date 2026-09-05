@@ -42,6 +42,15 @@ const LAMP_REACH = 0.09;
  */
 const LAMP_HEAD_HALF = 0.038;
 
+/**
+ * Y of the top of a ground billboard's frame — where a bird stands if it
+ * lands on one. Derived from the same constants that draw the structure,
+ * so a perch can never drift away from the thing it sits on.
+ */
+export function groundBillboardPerchY(panelHeight: number): number {
+  return LEG_HEIGHT + panelHeight + FRAME_MARGIN;
+}
+
 export interface GroundBillboardOptions {
   /**
    * Stable per-panel key (its id) — decides the figure's pose, build and

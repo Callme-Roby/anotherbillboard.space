@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { ANNOUNCEMENT_PLACEHOLDERS, RANK_SLOT_PLACEHOLDERS } from "../placeholders/mockPanels";
+import type { PerchSpot } from "./createBird";
 import { createBuildingMesh } from "./createBuilding";
 import { createScreenRig, FRAME_MARGIN, SCREEN_STANDOFF, type ScreenRigSpec } from "./createScreenRig";
 import { createSkyscraper, type SkyscraperSpec } from "./createSkyscraper";
@@ -272,16 +273,9 @@ function createRotatingSummit(
   };
 }
 
-/** A spot a bird can stand on: the top surface of something in the skyline. */
-export interface PerchSpot {
-  x: number;
-  y: number;
-  z: number;
-}
-
 /**
- * Everywhere a bird can land, derived from SKYLINE rather than listed by
- * hand — move a tower or resize a screen and its perch follows, instead
+ * Everywhere on the skyline a bird can land, derived from SKYLINE rather
+ * than listed by hand — move a tower or resize a screen and its perch follows, instead
  * of quietly leaving birds standing in mid-air.
  *
  * Roofs (the front edge of each tower's top tier) plus the top edge of
@@ -289,7 +283,7 @@ export interface PerchSpot {
  * `crown` rig is skipped: it's tilted back (see createScreenRig), so its
  * top edge isn't level and a bird would sit visibly askew on it.
  */
-export const PERCHES: PerchSpot[] = SKYLINE.flatMap((tower) => {
+export const SKYLINE_PERCHES: PerchSpot[] = SKYLINE.flatMap((tower) => {
   const apexY = tower.building.tiers.reduce((sum, tier) => sum + tier.height, 0);
   const topTier = tower.building.tiers[tower.building.tiers.length - 1];
   const spots: PerchSpot[] = [

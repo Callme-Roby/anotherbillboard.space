@@ -17,6 +17,13 @@ export const BIRD_WINGSPAN = 0.7;
 /** Peak wing deflection either side of level, in radians. */
 const FLAP_AMPLITUDE = 0.62;
 
+/** A spot a bird can stand on: the top surface of something in the scene. */
+export interface PerchSpot {
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface Bird {
   group: THREE.Group;
   /** Sets the wings for a flap phase; `phase` is in turns, not radians. */

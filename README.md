@@ -324,18 +324,44 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     vol N reste reproductible.
   - **Un vol sur trois vient se poser** au lieu de traverser : approche
     en piqué qui décélère sur le perchoir (interpolation *ease-out*, nez
-    qui se relève, battements plus rapides à l'arrivée — on freine, on ne
-    croise pas), cinq secondes posés, puis décollage qui accélère et
-    grimpe (*ease-in*). Posés, les oiseaux replient les ailes
-    (`setWingSpread`), se redressent et regardent autour d'eux chacun sur
-    son rythme — sans quoi ce sont trois modèles garés sur un toit.
-  - Les perchoirs sont **dérivés de `SKYLINE`** et non listés à la main
-    (`PERCHES` dans `createCentralBuilding.ts`) : bord avant de chaque
-    toit et arête supérieure de chaque écran à plat — l'image du corbeau
-    sur le panneau. Déplacer une tour ou redimensionner un écran déplace
-    le perchoir avec, au lieu de laisser discrètement des oiseaux debout
-    dans le vide. Le support `crown` est exclu : il est incliné vers
-    l'arrière, un oiseau s'y tiendrait visiblement de travers.
+    qui se relève, battements un peu plus appuyés à l'arrivée — on
+    freine, on ne croise pas), cinq secondes posés, puis décollage qui
+    accélère et grimpe (*ease-in*). Posés, les oiseaux replient les ailes
+    contre le corps (`setWingSpread`), se redressent et regardent autour
+    d'eux chacun sur son rythme — sans quoi ce sont trois modèles garés
+    sur un toit.
+  - Rythme revu après visionnage : l'approche et le décollage battaient
+    jusqu'à 1,7x la cadence de croisière, ce qui se lisait comme de la
+    panique plutôt que comme un oiseau qui se pose — c'est le battement,
+    plus que la trajectoire, qui rend un atterrissage nerveux. Ramené
+    tout près de la cadence de croisière, phases allongées, et ailes
+    repliées plus serré une fois posés.
+  - Les perchoirs sont **dérivés de la scène** et non listés à la main
+    (`SKYLINE_PERCHES` dans `createCentralBuilding.ts`,
+    `groundBillboardPerchY` dans `createGroundBillboard.ts`) : bord avant
+    de chaque toit, arête supérieure de chaque écran à plat — l'image du
+    corbeau sur le panneau — et le haut du panneau signature "ROBY".
+    Déplacer une tour ou redimensionner un écran déplace le perchoir
+    avec, au lieu de laisser discrètement des oiseaux debout dans le
+    vide. Le support `crown` est exclu : il est incliné vers l'arrière,
+    un oiseau s'y tiendrait visiblement de travers.
+  - **"ROBY" est le seul panneau au sol de la liste**, et c'est délibéré :
+    c'est le seul qui soit permanent. Tous les autres apparaissent et
+    disparaissent avec le refetch LOD (voir `LivePanels`), ce qui
+    laisserait un oiseau posé dessus debout dans le vide. Il arrive à son
+    tour dans le cycle, une fois sur dix — et comme il se tient à x=-15,
+    il faut dézoomer ou se déplacer pour le voir.
+  - `SceneManager` assemble la liste et la passe au vol, plutôt que
+    `Birds` n'aille la chercher : le vol n'a pas à savoir de quoi la
+    scène est faite. Les deux bouts d'un vol posé sont d'ailleurs mesurés
+    *depuis le perchoir* et non depuis des points fixes du monde — un
+    point d'entrée absolu ne marche que tant que tous les perchoirs sont
+    près du centre, et envoyait le vol à reculons vers "ROBY".
+  - Le cycle des perchoirs est indexé par un compteur d'atterrissages et
+    non par le numéro de vol : indexé par le vol, il ne marchait que par
+    l'accident que 3 (un vol sur trois) et le nombre de perchoirs étaient
+    premiers entre eux — ajouter un perchoir, ou se poser plus souvent,
+    aurait fait boucler le vol sur une partie d'entre eux à jamais.
   - Réglage venu de l'écran, pas du calcul : posés trop bas, les oiseaux
     se retrouvaient à quelques pixels du contour noir du toit et
     fusionnaient avec — ils atterrissaient parfaitement et ne se lisaient
