@@ -317,6 +317,11 @@ export class CameraController {
     this.camera.lookAt(this.scratchLookAt);
   }
 
+  /** Raw (damped) `camera.zoom` value — for PostProcessing's zoom-compensated internal resolution. */
+  get currentZoom(): number {
+    return this.zoom;
+  }
+
   /** 0 = fully zoomed out, 1 = fully zoomed in — for the minimap indicator's size. */
   get normalizedZoom(): number {
     const t = (this.zoom - this.effectiveMinZoom) / (this.maxZoom - this.effectiveMinZoom);

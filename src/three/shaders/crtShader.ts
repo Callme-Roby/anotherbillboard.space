@@ -5,7 +5,8 @@ import * as THREE from "three";
  * rendering the scene at a low internal resolution into a NEAREST-filtered
  * render target — see PostProcessing.ts — then upscaling it here) combined
  * with an old-TV/CRT screen look (screen curvature, scanlines, vignette,
- * chromatic aberration).
+ * chromatic aberration) — animated (scanline drift, brightness flicker)
+ * rather than a static filter, via uTime.
  *
  * Shape follows the three.js addon convention (`{ uniforms, vertexShader,
  * fragmentShader }`) so it can be passed straight into `new ShaderPass(...)`.
@@ -14,10 +15,17 @@ export const CRTShader = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
     uResolution: { value: new THREE.Vector2(1, 1) },
+    uTime: { value: 0 },
     uScanlineIntensity: { value: 0.15 },
+    uScanlineScrollSpeed: { value: 1.6 },
+    uFlickerStrength: { value: 0.03 },
     uVignetteStrength: { value: 0.35 },
     uAberrationStrength: { value: 0.0025 },
     uCurvature: { value: 0.15 },
+    // Matches BACKGROUND_COLOR by default (set in PostProcessing.ts) so
+    // the area outside the curved screen blends with the scene instead
+    // of showing as a stray frame.
+    uBezelColor: { value: new THREE.Color(0xffffff) },
   },
 
   vertexShader: `
@@ -32,10 +40,14 @@ export const CRTShader = {
   fragmentShader: `
     uniform sampler2D tDiffuse;
     uniform vec2 uResolution;
+    uniform float uTime;
     uniform float uScanlineIntensity;
+    uniform float uScanlineScrollSpeed;
+    uniform float uFlickerStrength;
     uniform float uVignetteStrength;
     uniform float uAberrationStrength;
     uniform float uCurvature;
+    uniform vec3 uBezelColor;
 
     varying vec2 vUv;
 
@@ -44,14 +56,15 @@ export const CRTShader = {
       // [0,1] as the fragment approaches a corner (squared falloff, so
       // screen-center stays put and the warp only really bites near the
       // edges) — the picture reads as bulging like curved CRT glass.
-      // Outside the curved screen there's nothing to show: a black bezel,
-      // not a stretched/clamped edge or a wrapped sample.
+      // Outside the curved screen there's nothing to show: uBezelColor
+      // (matches the scene background), not a stretched/clamped edge or
+      // a wrapped sample.
       vec2 rawCentered = vUv - 0.5;
       float curveDist2 = dot(rawCentered, rawCentered);
       vec2 uv = vUv + rawCentered * curveDist2 * uCurvature;
 
       if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        gl_FragColor = vec4(uBezelColor, 1.0);
         return;
       }
 
@@ -67,8 +80,10 @@ export const CRTShader = {
       vec3 color = vec3(r, g, b);
 
       // Scanlines, spaced to the low-res internal render height so each
-      // line tracks a real pixel row rather than an arbitrary frequency.
-      float scanline = sin(uv.y * uResolution.y * 3.14159265) * 0.5 + 0.5;
+      // line tracks a real pixel row rather than an arbitrary frequency —
+      // phase drifts slowly with uTime so the pattern rolls instead of
+      // sitting frozen, like an old tube's imperfect vertical sync.
+      float scanline = sin(uv.y * uResolution.y * 3.14159265 + uTime * uScanlineScrollSpeed) * 0.5 + 0.5;
       color *= mix(1.0, scanline, uScanlineIntensity);
 
       // Light vignette. (smoothstep args ascending — GLSL leaves the
@@ -76,6 +91,13 @@ export const CRTShader = {
       // rather than rely on it.)
       float vignette = 1.0 - smoothstep(0.35, 0.95, dist);
       color *= mix(1.0, vignette, uVignetteStrength);
+
+      // Subtle brightness flicker: two incommensurate sine frequencies so
+      // it doesn't read as a mechanical pulse, kept small (uFlickerStrength
+      // is a few percent) so it's felt more than seen — an old tube's
+      // imperfect power supply, not a strobe.
+      float flicker = 1.0 + (sin(uTime * 17.0) + sin(uTime * 29.3)) * 0.5 * uFlickerStrength;
+      color *= flicker;
 
       gl_FragColor = vec4(color, 1.0);
     }

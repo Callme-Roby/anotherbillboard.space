@@ -83,16 +83,49 @@ export const SIGNATURE_PANEL_Z = 8;
 // scene is rendered at this (low) resolution into a NEAREST-filtered
 // render target, then the CRT pass upscales it into the full-resolution
 // canvas — that mismatch is what produces the blocky PS1-style pixel
-// grid, "for free", instead of a blur filter faking it.
-export const INTERNAL_RESOLUTION_SCALE = 0.3;
+// grid, "for free", instead of a blur filter faking it. Raised from an
+// earlier 0.3 — reported as too aggressive — while still keeping a real
+// pixel-staircase look on edges, not smooth antialiasing.
+export const INTERNAL_RESOLUTION_SCALE = 0.42;
+// This internal resolution is otherwise fixed relative to the *viewport*
+// only, not the camera's zoom — since geometry shrinks on screen as the
+// camera zooms out, the same fixed pixel grid then covers each edge with
+// fewer texels, so straight lines read as coarser/thicker relative to
+// the (now smaller) object the further out you zoom — reported directly
+// against the running site as outlines visibly "growing" on zoom-out.
+// Compensated here by scaling resolution up as `zoom` drops below 1 (see
+// PostProcessing.internalResolution) — throttled to only actually resize
+// the render target when the *rounded* pixel count changes, not every
+// frame, since reallocating a WebGLRenderTarget isn't free.
+//
+// Deliberately partial (sqrt, not linear) and capped: full 1:1
+// compensation (scale by `1/zoom` exactly) was tried and made the
+// pixelation nearly disappear at max zoom-out, defeating the look this
+// is meant to have in the first place — checked by actually zooming out
+// and looking, not assumed from the formula.
+export const ZOOM_RESOLUTION_COMPENSATION_EXPONENT = 0.5;
+export const ZOOM_RESOLUTION_COMPENSATION_MAX = 1.8;
 export const CRT_SCANLINE_INTENSITY = 0.15;
+// Scanlines slowly drift downward over time (radians of phase per
+// second) rather than sitting static — part of making the CRT look feel
+// alive rather than a frozen filter. Slow on purpose: this is meant to
+// read as an old tube's imperfect vertical sync, not a strobe.
+export const CRT_SCANLINE_SCROLL_SPEED = 1.6;
+// Subtle brightness wobble over time (two incommensurate sine waves so
+// it doesn't read as a mechanical pulse) — an old tube's imperfect power
+// supply, not a strobe effect. Deliberately small: this is a brightness
+// dither of a few percent, not a flash — kept well clear of anything
+// that could read as a seizure-risk flicker.
+export const CRT_FLICKER_STRENGTH = 0.03;
 export const CRT_VIGNETTE_STRENGTH = 0.35;
 export const CRT_ABERRATION_STRENGTH = 0.0025;
 // Barrel/screen curvature — the picture bulges as if seen through curved
 // CRT glass, sampled progressively further out toward the corners (see
-// crtShader.ts). Outside the curved screen renders as a black bezel
-// rather than a stretched/clamped edge. 0 = flat/off; ~0.1-0.2 is a
-// convincing "old TV" curve without reading as a fisheye gimmick.
+// crtShader.ts). Outside the curved screen renders in uBezelColor
+// (BACKGROUND_COLOR — see PostProcessing.ts) rather than a stretched/
+// clamped edge, so the curve reads as part of the scene rather than a
+// stray black frame. 0 = flat/off; ~0.1-0.2 is a convincing "old TV"
+// curve without reading as a fisheye gimmick.
 export const CRT_CURVATURE_STRENGTH = 0.15;
 
 // --- Ground / plaza -----------------------------------------------------

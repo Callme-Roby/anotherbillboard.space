@@ -109,23 +109,58 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     dans le vide. Amorti différemment du zoom : le glisser suit le
     pointeur au pixel près (`CameraController.applyDragDelta`) plutôt que
     d'amortir en douceur, pour rester "collé" au doigt/à la souris.
-- Fond de scène blanc cassé (`BACKGROUND_COLOR`, `#f3efe6`) — bâtiments/
-  panneaux volontairement inchangés (matériaux/contours noirs déjà en
-  place gardent leur lisibilité sur fond clair, contrairement au fond
-  sombre initial).
+- Fond de scène blanc cassé (`BACKGROUND_COLOR`, `#f3efe6`) — sol et ciel
+  compris (`createGround.ts`, même couleur exactement, pas juste
+  "assortie" à la main) : ils se lisent comme une seule surface continue,
+  la grille du sol (recolorée sombre pour rester lisible sur fond clair —
+  l'inverse de la version fond-sombre initiale) et les contours noirs de
+  chaque forme portent maintenant toute la structure visuelle. Bâtiments/
+  panneaux eux-mêmes volontairement inchangés (hors du périmètre demandé
+  jusqu'ici).
+- Panneaux au sol montés sur un vrai petit modèle 3D (`createGroundBillboard.ts`)
+  plutôt qu'un plan posé à même le sol : deux pieds fins (même matériau
+  boîte + contours noirs que le reste de la scène) élevant le panneau,
+  comme un vrai panneau publicitaire. Premier passage volontairement
+  simple : les pieds sont une taille fixe pour tous les panneaux au sol
+  (signature "ROBY" comprise), indépendamment du montant/de la taille du
+  panneau — les faire varier avec le panneau est un prochain pas, pas
+  encore fait.
+- En-tête (`Header.tsx`), haut-centre : nom du site, même traitement HUD
+  compact que la légende/minimap plutôt qu'une vraie barre de navigation
+  (rien à y mettre sur un site one-page) — seul élément du HUD qui n'est
+  pas `aria-hidden`, puisque c'est le seul vrai contenu/titre de la page
+  (`SITE_NAME`, partagé avec le `<title>` dans `layout.tsx` pour que les
+  deux ne puissent pas diverger).
 - Post-traitement global unique (`EffectComposer` + `RenderPass` + un
   `ShaderPass` custom `CRTShader` + `OutputPass`) : rendu interne basse
   résolution + upscale `NEAREST` (pixel/aliasing façon PS1), scanlines,
-  vignette, aberration chromatique, **et courbure d'écran** (barrel
-  distortion façon verre bombé de tube cathodique) — l'image est
-  échantillonnée de plus en plus loin du centre en approchant des coins
-  (chute en carré de la distance), et tout ce qui tombe hors de cet écran
-  courbé rend en noir plutôt qu'un bord étiré/collé : ça donne à la fois
-  le bombé et la lisière noire façon boîtier de télé, avec un seul
-  paramètre (`CRT_CURVATURE_STRENGTH`). Effet secondaire bienvenu :
-  l'aberration chromatique (déjà présente) se combine avec la courbure et
-  devient plus marquée près des bords, renforçant encore l'impression de
-  vieille télé/signal analogique.
+  vignette, aberration chromatique, courbure d'écran (barrel distortion
+  façon verre bombé de tube cathodique — l'image est échantillonnée de
+  plus en plus loin du centre en approchant des coins, chute en carré de
+  la distance) et animation (scanlines qui dérivent lentement + léger
+  flicker de luminosité — deux sinusoïdes à fréquences non multiples
+  l'une de l'autre pour ne pas lire comme un pouls mécanique, amplitude
+  volontairement faible pour rester un effet ressenti plutôt qu'un
+  clignotement — voir `CRT_FLICKER_STRENGTH`), plutôt qu'un filtre figé.
+  - Tout ce qui tombe hors de l'écran courbé rend dans `uBezelColor`
+    (= `BACKGROUND_COLOR`, pas noir) plutôt qu'un bord étiré/collé, pour
+    que la courbure se fonde dans la scène au lieu d'ajouter un cadre qui
+    détonne avec le reste.
+  - Pixelisation assouplie (`INTERNAL_RESOLUTION_SCALE` remonté) et
+    surtout compensée par le zoom caméra (`PostProcessing.internalResolution`) :
+    cette résolution interne était fixe par rapport au *viewport* mais
+    indépendante du zoom caméra, donc un même contour couvert par de
+    moins en moins de texels en dézoomant (la géométrie rétrécit à
+    l'écran, pas la grille de pixels) — reporté directement comme des
+    contours qui "grossissent" visuellement en dézoomant. Compensé en
+    augmentant la résolution interne à mesure que le zoom diminue
+    (partiellement — racine carrée, plafonnée — une compensation 1:1
+    complète a été essayée et a quasiment fait disparaître la
+    pixelisation au dézoom max, ce qui n'était pas non plus le but,
+    vérifié à l'écran et pas juste sur le papier), recalculée à chaque
+    frame mais le redimensionnement du render target réel n'a lieu que
+    si la résolution arrondie change vraiment (sinon coûteux/risque de
+    saccade à chaque frame d'un zoom en cours).
 - Minimap (bas-gauche) et légende (bas-droite), mises à jour hors du
   cycle de rendu React (event bus + DOM direct, pas de re-render à
   chaque frame de scroll).

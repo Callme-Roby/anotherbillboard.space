@@ -6,24 +6,44 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 
 import { CRTShader } from "../shaders/crtShader";
 import {
+  BACKGROUND_COLOR,
   CRT_ABERRATION_STRENGTH,
   CRT_CURVATURE_STRENGTH,
+  CRT_FLICKER_STRENGTH,
   CRT_SCANLINE_INTENSITY,
+  CRT_SCANLINE_SCROLL_SPEED,
   CRT_VIGNETTE_STRENGTH,
   INTERNAL_RESOLUTION_SCALE,
+  ZOOM_RESOLUTION_COMPENSATION_EXPONENT,
+  ZOOM_RESOLUTION_COMPENSATION_MAX,
 } from "./constants";
 
 export interface PostProcessingHandle {
   composer: EffectComposer;
-  render: () => void;
+  /** Called once per frame: advances uTime and re-checks the zoom-compensated internal resolution. */
+  render: (elapsedSeconds: number, zoom: number) => void;
   setSize: (width: number, height: number) => void;
   dispose: () => void;
 }
 
-function internalResolution(width: number, height: number) {
+/**
+ * How much to scale INTERNAL_RESOLUTION_SCALE up as `zoom` drops below 1
+ * — see the constant's own doc comment for why this is partial (sqrt)
+ * and capped rather than a full 1/zoom compensation.
+ */
+function zoomResolutionCompensation(zoom: number): number {
+  const safeZoom = Math.max(zoom, 0.01);
+  return Math.min(
+    ZOOM_RESOLUTION_COMPENSATION_MAX,
+    Math.pow(1 / safeZoom, ZOOM_RESOLUTION_COMPENSATION_EXPONENT),
+  );
+}
+
+function internalResolution(width: number, height: number, zoom: number) {
+  const scale = INTERNAL_RESOLUTION_SCALE * zoomResolutionCompensation(zoom);
   return {
-    width: Math.max(2, Math.round(width * INTERNAL_RESOLUTION_SCALE)),
-    height: Math.max(2, Math.round(height * INTERNAL_RESOLUTION_SCALE)),
+    width: Math.max(2, Math.round(width * scale)),
+    height: Math.max(2, Math.round(height * scale)),
   };
 }
 
@@ -46,9 +66,12 @@ export function createPostProcessing(
   width: number,
   height: number,
 ): PostProcessingHandle {
-  const rt = internalResolution(width, height);
+  let viewportWidth = width;
+  let viewportHeight = height;
+  let lastZoom = 1;
+  let currentRt = internalResolution(width, height, lastZoom);
 
-  const renderTarget = new THREE.WebGLRenderTarget(rt.width, rt.height, {
+  const renderTarget = new THREE.WebGLRenderTarget(currentRt.width, currentRt.height, {
     minFilter: THREE.NearestFilter,
     magFilter: THREE.NearestFilter,
     format: THREE.RGBAFormat,
@@ -56,16 +79,19 @@ export function createPostProcessing(
 
   const composer = new EffectComposer(renderer, renderTarget);
   composer.setPixelRatio(1);
-  composer.setSize(rt.width, rt.height);
+  composer.setSize(currentRt.width, currentRt.height);
 
   composer.addPass(new RenderPass(scene, camera));
 
   const crtPass = new ShaderPass(CRTShader);
-  crtPass.uniforms.uResolution.value.set(rt.width, rt.height);
+  crtPass.uniforms.uResolution.value.set(currentRt.width, currentRt.height);
   crtPass.uniforms.uScanlineIntensity.value = CRT_SCANLINE_INTENSITY;
+  crtPass.uniforms.uScanlineScrollSpeed.value = CRT_SCANLINE_SCROLL_SPEED;
+  crtPass.uniforms.uFlickerStrength.value = CRT_FLICKER_STRENGTH;
   crtPass.uniforms.uVignetteStrength.value = CRT_VIGNETTE_STRENGTH;
   crtPass.uniforms.uAberrationStrength.value = CRT_ABERRATION_STRENGTH;
   crtPass.uniforms.uCurvature.value = CRT_CURVATURE_STRENGTH;
+  crtPass.uniforms.uBezelColor.value.set(BACKGROUND_COLOR);
   composer.addPass(crtPass);
 
   // Custom ShaderPass instances read/write raw (linear) color values and
@@ -77,13 +103,32 @@ export function createPostProcessing(
   outputPass.renderToScreen = true;
   composer.addPass(outputPass);
 
+  // Re-picks the internal resolution for the current viewport size *and*
+  // zoom, but only actually reallocates the render target when the
+  // rounded pixel dimensions changed — called every frame (zoom changes
+  // continuously while damping converges) so this early-exit is what
+  // keeps that cheap: reallocating a WebGLRenderTarget on every tick of
+  // a smooth zoom would be wasteful and could visibly stutter.
+  function applyInternalResolution(zoom: number) {
+    const rt = internalResolution(viewportWidth, viewportHeight, zoom);
+    if (rt.width === currentRt.width && rt.height === currentRt.height) return;
+    currentRt = rt;
+    composer.setSize(rt.width, rt.height);
+    crtPass.uniforms.uResolution.value.set(rt.width, rt.height);
+  }
+
   return {
     composer,
-    render: () => composer.render(),
+    render: (elapsedSeconds, zoom) => {
+      lastZoom = zoom;
+      crtPass.uniforms.uTime.value = elapsedSeconds;
+      applyInternalResolution(zoom);
+      composer.render();
+    },
     setSize: (newWidth, newHeight) => {
-      const newRt = internalResolution(newWidth, newHeight);
-      composer.setSize(newRt.width, newRt.height);
-      crtPass.uniforms.uResolution.value.set(newRt.width, newRt.height);
+      viewportWidth = newWidth;
+      viewportHeight = newHeight;
+      applyInternalResolution(lastZoom);
     },
     dispose: () => {
       // `composer.dispose()` only frees its own ping-pong render targets,

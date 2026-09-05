@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import { createCentralBuilding } from "../objects/createCentralBuilding";
 import { createGround } from "../objects/createGround";
+import { createGroundBillboard } from "../objects/createGroundBillboard";
 import { createPanelMesh } from "../objects/createPanel";
 import { SIGNATURE_PANEL } from "../placeholders/mockPanels";
 import { CameraController } from "./CameraController";
@@ -101,13 +102,11 @@ export class SceneManager {
     // angled yaw was tried and dropped (see git history): legibility
     // matters more here than a decorative angle. Position shared with
     // CAMERA_OVERVIEW_* in constants.ts, which needs this depth to size
-    // the mobile zoom-out floor correctly — keep them in sync.
-    const signature = createPanelMesh(SIGNATURE_PANEL);
-    signature.position.set(
-      C.SIGNATURE_PANEL_X,
-      signature.geometry.parameters.height / 2 + 0.4,
-      C.SIGNATURE_PANEL_Z,
-    );
+    // the mobile zoom-out floor correctly — keep them in sync. On its own
+    // stand like every other ground panel (createGroundBillboard), not
+    // resting flush on the ground.
+    const signature = createGroundBillboard(createPanelMesh(SIGNATURE_PANEL));
+    signature.position.set(C.SIGNATURE_PANEL_X, 0, C.SIGNATURE_PANEL_Z);
     this.scene.add(signature);
   }
 
@@ -133,7 +132,7 @@ export class SceneManager {
     const delta = this.timer.getDelta();
     this.cameraController.update(delta);
     this.emitViewChangeIfNeeded();
-    this.postProcessing.render();
+    this.postProcessing.render(this.timer.getElapsed(), this.cameraController.currentZoom);
 
     this.rafId = requestAnimationFrame(this.animate);
   };

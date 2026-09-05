@@ -5,6 +5,7 @@ import type { PublicPanel } from "@/lib/api/serializePanel";
 import { getPusherClient, subscribeToPlaza } from "@/lib/pusher/client";
 import { PanelEvent } from "@/lib/realtime";
 
+import { createGroundBillboard } from "../objects/createGroundBillboard";
 import { createPanelMesh, createRealPanelMesh } from "../objects/createPanel";
 import { placeholderRowLayout } from "../placeholders/layout";
 import { MOCK_PANELS } from "../placeholders/mockPanels";
@@ -15,12 +16,12 @@ import { disposeObject3D } from "./disposeObject3D";
  * Owns the ground-panel group: shows the mock demo row until real
  * purchases exist, fetches real panels, and keeps them live via Pusher
  * (`panel:created`/`panel:updated`) without ever rebuilding the whole
- * scene — only the changed mesh is touched.
+ * scene — only the changed billboard is touched.
  */
 export class LivePanels {
   readonly group: THREE.Group;
 
-  private readonly meshesById = new Map<string, THREE.Mesh>();
+  private readonly billboardsById = new Map<string, THREE.Group>();
   private usingMockPanels = true;
   private disposed = false;
 
@@ -37,9 +38,10 @@ export class LivePanels {
     const positions = placeholderRowLayout(widths);
     MOCK_PANELS.forEach((panel, i) => {
       const mesh = createPanelMesh(panel);
+      const billboard = createGroundBillboard(mesh);
       const pos = positions[i];
-      mesh.position.set(pos.x, mesh.geometry.parameters.height / 2, pos.z);
-      this.group.add(mesh);
+      billboard.position.set(pos.x, 0, pos.z);
+      this.group.add(billboard);
     });
   }
 
@@ -48,7 +50,7 @@ export class LivePanels {
     if (!this.usingMockPanels) return;
     for (const child of [...this.group.children]) {
       this.group.remove(child);
-      disposeObject3D(child, false);
+      disposeObject3D(child); // recursive: each child is now a billboard group, not a lone mesh
     }
     this.usingMockPanels = false;
   }
@@ -58,7 +60,7 @@ export class LivePanels {
       const panels = await fetchPanels();
       if (this.disposed || panels.length === 0) return;
       this.clearMockPanelsIfNeeded();
-      panels.forEach((panel) => this.upsertMesh(panel));
+      panels.forEach((panel) => this.upsertBillboard(panel));
     } catch (error) {
       console.error("[scene] failed to load panels from /api/panels — keeping the demo panels", error);
     }
@@ -71,29 +73,30 @@ export class LivePanels {
     const handle = (panel: PublicPanel) => {
       if (this.disposed) return;
       this.clearMockPanelsIfNeeded();
-      this.upsertMesh(panel);
+      this.upsertBillboard(panel);
     };
     channel.bind(PanelEvent.Created, handle);
     channel.bind(PanelEvent.Updated, handle);
   }
 
-  private upsertMesh(panel: PublicPanel) {
-    const existing = this.meshesById.get(panel.id);
+  private upsertBillboard(panel: PublicPanel) {
+    const existing = this.billboardsById.get(panel.id);
     if (existing) {
       this.group.remove(existing);
-      disposeObject3D(existing, false);
+      disposeObject3D(existing); // recursive: legs + panel, not a lone mesh
     }
 
     const mesh = createRealPanelMesh(panel);
-    mesh.position.set(panel.positionX, panel.size / 2, panel.positionY);
-    this.group.add(mesh);
-    this.meshesById.set(panel.id, mesh);
+    const billboard = createGroundBillboard(mesh);
+    billboard.position.set(panel.positionX, 0, panel.positionY);
+    this.group.add(billboard);
+    this.billboardsById.set(panel.id, billboard);
   }
 
   dispose() {
     this.disposed = true;
     getPusherClient()?.disconnect();
     disposeObject3D(this.group);
-    this.meshesById.clear();
+    this.billboardsById.clear();
   }
 }

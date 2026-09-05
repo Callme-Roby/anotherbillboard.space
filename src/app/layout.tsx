@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 
+import { SITE_NAME } from "@/lib/site";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Another Billboard",
+  title: SITE_NAME,
   description:
     "Scène 3D interactive : payez pour afficher la bannière de votre site sur un panneau ou un écran de bâtiment.",
 };
