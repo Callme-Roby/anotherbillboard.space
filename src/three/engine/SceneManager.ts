@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import type { PerchSpot } from "../objects/createBird";
+import { type CrowdMember, placeCharacter } from "../objects/createCharacter";
 import { createCentralBuilding, SKYLINE_PERCHES } from "../objects/createCentralBuilding";
 import { createGround } from "../objects/createGround";
 import { createGroundBillboard, groundBillboardPerchY } from "../objects/createGroundBillboard";
@@ -9,7 +10,8 @@ import { SIGNATURE_PANEL } from "../placeholders/mockPanels";
 import { type BirdCall, createBirdCall } from "./birdCall";
 import { Birds } from "./Birds";
 import { CameraController } from "./CameraController";
-import { type CharacterGaze, createCharacterGaze } from "./characterGaze";
+import { Crowd } from "./Crowd";
+import { createPointerTracker, type PointerTracker } from "./pointerTracker";
 import * as C from "./constants";
 import { disposeObject3D } from "./disposeObject3D";
 import { LivePanels } from "./LivePanels";
@@ -38,7 +40,10 @@ export class SceneManager {
   private readonly livePanels: LivePanels;
   private readonly birds: Birds;
   private readonly birdCall: BirdCall;
-  private readonly characterGaze: CharacterGaze;
+  private readonly pointer: PointerTracker;
+  private readonly crowd: Crowd;
+  /** The signature panel's own person — outside LivePanels' roster. */
+  private readonly signatureMember: CrowdMember;
   /** Advances the central building's rotating summit — set in buildScene(). */
   private updateCentralBuilding: (delta: number) => void = () => {};
 
@@ -83,7 +88,12 @@ export class SceneManager {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
 
-    const signaturePerch = this.buildScene();
+    const { perch: signaturePerch, member: signatureMember } = this.buildScene();
+    this.signatureMember = signatureMember;
+
+    this.pointer = createPointerTracker(container);
+    this.crowd = new Crowd();
+    this.scene.add(this.crowd.group);
 
     // The flock and its call are separate concerns wired together here,
     // so the flock stays silent (and testable) on its own. The signature
@@ -98,9 +108,12 @@ export class SceneManager {
     });
     this.scene.add(this.birds.group);
 
-    this.characterGaze = createCharacterGaze(container);
-
-    this.livePanels = new LivePanels();
+    // The plaza's people come from two places — every panel LivePanels
+    // has loaded, plus the signature sign, which lives outside its
+    // roster — so they are merged here, where both are already known.
+    this.livePanels = new LivePanels({
+      onCrowdChange: (members) => this.crowd.setMembers([...members, this.signatureMember]),
+    });
     this.scene.add(this.livePanels.group);
     this.postProcessing = createPostProcessing(this.renderer, this.scene, this.camera, width, height);
 
@@ -117,8 +130,8 @@ export class SceneManager {
     };
   }
 
-  /** Returns the signature sign's perch — see the constructor. */
-  private buildScene(): PerchSpot {
+  /** Returns the signature sign's perch and its person — see the constructor. */
+  private buildScene(): { perch: PerchSpot; member: CrowdMember } {
     this.scene.add(createGround());
 
     const centralBuilding = createCentralBuilding();
@@ -135,19 +148,25 @@ export class SceneManager {
     // stand like every other ground panel (createGroundBillboard), not
     // resting flush on the ground.
     const signatureMesh = createPanelMesh(SIGNATURE_PANEL);
-    const signature = createGroundBillboard(signatureMesh, {
-      seed: SIGNATURE_PANEL.id,
-      accent: SIGNATURE_PANEL.color,
-    });
+    const signature = createGroundBillboard(signatureMesh);
     signature.position.set(C.SIGNATURE_PANEL_X, 0, C.SIGNATURE_PANEL_Z);
     this.scene.add(signature);
 
-    // Read back off the built mesh rather than off SIGNATURE_PANEL.size,
-    // so the perch tracks whatever size the panel actually ended up.
+    // Both read back off the built mesh rather than off
+    // SIGNATURE_PANEL.size, so they track whatever size it ended up.
     return {
-      x: C.SIGNATURE_PANEL_X,
-      y: groundBillboardPerchY(signatureMesh.geometry.parameters.height),
-      z: C.SIGNATURE_PANEL_Z,
+      perch: {
+        x: C.SIGNATURE_PANEL_X,
+        y: groundBillboardPerchY(signatureMesh.geometry.parameters.height),
+        z: C.SIGNATURE_PANEL_Z,
+      },
+      member: placeCharacter(
+        SIGNATURE_PANEL.id,
+        signatureMesh.geometry.parameters.width,
+        C.SIGNATURE_PANEL_X,
+        C.SIGNATURE_PANEL_Z,
+        new THREE.Color(SIGNATURE_PANEL.color),
+      ),
     };
   }
 
@@ -176,7 +195,8 @@ export class SceneManager {
     // After the camera: the flock's "is it on screen yet" test projects
     // through the live camera, so it must see this frame's zoom/pan.
     this.birds.update(delta, this.camera);
-    this.characterGaze.update(delta);
+    this.pointer.update(delta);
+    this.crowd.update(delta, this.pointer.x);
     this.emitViewChangeIfNeeded();
     this.postProcessing.render(this.timer.getElapsed(), this.cameraController.currentZoom);
 
@@ -210,7 +230,8 @@ export class SceneManager {
     this.livePanels.dispose(); // also disconnects the realtime subscription
     this.birds.dispose();
     this.birdCall.dispose(); // closes the AudioContext and drops its unlock listeners
-    this.characterGaze.dispose();
+    this.pointer.dispose();
+    this.crowd.dispose();
 
     // Covers everything still in the scene, including anything
     // livePanels.dispose() already handled above — redundant disposal

@@ -1,7 +1,5 @@
 import * as THREE from "three";
 
-import { createBillboardLineMaterial } from "../engine/characterGaze";
-import { placeCharacter, pushCharacter } from "./createCharacter";
 
 /**
  * A real roadside-billboard structure: two braced posts, a bezel around
@@ -52,26 +50,16 @@ export function groundBillboardPerchY(panelHeight: number): number {
   return LEG_HEIGHT + panelHeight + FRAME_MARGIN;
 }
 
-export interface GroundBillboardOptions {
-  /**
-   * Stable per-panel key (its id) — decides the figure's pose, build and
-   * which side of the sign it stands on, so it stays put across the LOD
-   * refetch instead of reshuffling every time the camera zooms.
-   */
-  seed: string;
-  /** The panel's own colour, worn by its figure. Falls back to the ink. */
-  accent?: string | null;
-}
-
 /**
  * Wraps an already-built flat panel mesh (see createPanel.ts) in its
- * support structure, standing it off the ground, with the one figure
- * that panel brings to the plaza (see createCharacter.ts).
+ * support structure, standing it off the ground.
  *
  * The whole structure — posts, bracing, footings, bezel, catwalk and
- * lamps, and the panel's own figure — is a *single* `LineSegments`, with
- * the lamp heads' warm color carried in a vertex-color attribute rather
- * than a second material.
+ * lamps — is a *single* `LineSegments`, with the lamp heads' warm color
+ * carried in a vertex-color attribute rather than a second material.
+ * (The panel's own person lives in the crowd instead — see
+ * objects/createCharacter.ts and engine/Crowd.ts — since walking needs
+ * per-person state that geometry baked into a billboard cannot carry.)
  * That's what lets this object be the detailed one: it costs two draw
  * calls (structure + picture) no matter how much detail is added to it,
  * where the old two-posts-as-boxes version already cost five for far
@@ -85,7 +73,6 @@ export interface GroundBillboardOptions {
  */
 export function createGroundBillboard(
   panel: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>,
-  options: GroundBillboardOptions,
 ): THREE.Group {
   const group = new THREE.Group();
   group.name = "ground-billboard";
@@ -98,7 +85,6 @@ export function createGroundBillboard(
 
   const positions: number[] = [];
   const colors: number[] = [];
-  const pivots: number[] = [];
   const structureColor = new THREE.Color(STRUCTURE_COLOR);
   const lampColor = new THREE.Color(LAMP_COLOR);
 
@@ -109,11 +95,6 @@ export function createGroundBillboard(
   ) => {
     positions.push(ax, ay, az, bx, by, bz);
     colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
-    // The structure never turns, so each of its vertices pivots about
-    // itself — see createBillboardLineMaterial for why that is all it
-    // takes to hold it still — and a zero lean scale keeps it out of the
-    // lean too.
-    pivots.push(ax, az, 0, bx, bz, 0);
   };
 
   const halfWidth = panelWidth / 2;
@@ -172,22 +153,10 @@ export function createGroundBillboard(
     segment(x - LAMP_HEAD_HALF, headY, LAMP_REACH, x + LAMP_HEAD_HALF, headY, LAMP_REACH, lampColor);
   }
 
-  // The panel's own figure, merged into this same buffer — see
-  // createCharacter.ts for why it isn't its own object.
-  pushCharacter(
-    positions,
-    colors,
-    pivots,
-    placeCharacter(options.seed, panelWidth),
-    structureColor,
-    options.accent ? new THREE.Color(options.accent) : structureColor,
-  );
-
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  geometry.setAttribute("aPivot", new THREE.Float32BufferAttribute(pivots, 3));
-  group.add(new THREE.LineSegments(geometry, createBillboardLineMaterial()));
+  group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true })));
 
   return group;
 }

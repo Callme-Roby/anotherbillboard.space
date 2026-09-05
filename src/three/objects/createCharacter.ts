@@ -1,21 +1,21 @@
 import * as THREE from "three";
 
 /**
- * One small figure standing at the foot of a billboard — the scene's
- * "1 panel = 1 character" rule: every panel someone buys puts one more
- * person in the plaza, so the crowd *is* the sales figure, readable at a
- * glance before any number is.
+ * The people on the plaza — the scene's "1 panel = 1 character" rule:
+ * every panel someone buys puts one more person there, so the crowd *is*
+ * the sales figure, readable at a glance before any number is.
  *
- * Written as a push-into-shared-buffers function rather than a factory
- * returning an Object3D, on the same pattern as the towers' window grids
- * (createSkyscraper.ts): it lets each figure be merged straight into its
- * billboard's existing structure `LineSegments`, so adding a character
- * per panel costs zero extra draw calls on the object the scene has the
- * most of. The trade-off is that a figure can't be moved or animated on
- * its own while merged — if they ever need to walk, they come out into
- * their own (ideally instanced) geometry, which is the same direction
- * the panels themselves are already headed for LOD.
+ * A character writes its vertices straight into buffers owned by the
+ * crowd (see engine/Crowd.ts) rather than owning a mesh of its own. Every
+ * person in the plaza is therefore one draw call between them all, while
+ * still being animated individually on the CPU — which is what walking
+ * needs and what a single shared shader uniform could not give: a walk
+ * has per-person state (where they are, how far through a stride) that
+ * an attribute baked once at build time cannot carry.
  */
+
+/** Line segments one character is made of; the crowd sizes buffers from it. */
+export const CHARACTER_SEGMENTS = 13;
 
 /**
  * Human scale against the signs. A real billboard panel on its posts
@@ -25,115 +25,177 @@ import * as THREE from "three";
  */
 export const CHARACTER_HEIGHT = 0.3;
 
-/** How far in front of the structure (toward the camera) a figure stands. */
-const CHARACTER_FORWARD_Z = 0.18;
-/** Sideways stand-off, as a multiple of the panel's half-width. */
-const CHARACTER_SIDE_FRACTION = 1.08;
+/** Sideways stand-off from a panel's centre, as a multiple of its half-width. */
+const SIDE_FRACTION = 1.08;
+/**
+ * Depth band the crowd is spread through, in front of the panel row.
+ * Standing them all at one depth reads as a row of cut-outs; spread over
+ * a couple of units they overlap at different sizes and start reading as
+ * a crowd with people in front of other people.
+ */
+const DEPTH_NEAR = 3.0;
+const DEPTH_FAR = -0.6;
 
-export interface CharacterPlacement {
-  /** Feet position, in the billboard's local space. */
+export interface CrowdMember {
+  /** Stable key — the panel's id. Keeps a walker's state across refetches. */
+  id: string;
+  /** Where this person stands when the pointer is centred. */
+  homeX: number;
+  z: number;
+  height: number;
+  /** Selects pose + build; see poseFromVariant. */
+  variant: number;
+  /** How far this person ranges, relative to the crowd's base reach. */
+  reach: number;
+  /** Worn on the head — the colour of the panel this person belongs to. */
+  accent: THREE.Color;
+}
+
+/**
+ * Places the person belonging to one panel. Everything is derived from
+ * `seed` (the panel's id) so a walker keeps the same build, depth and
+ * range across refetches: the LOD refetch reconciles panels continuously
+ * (see LivePanels), and a crowd that reshuffled itself every time the
+ * camera zoomed would read as flickering, not as a crowd.
+ */
+export function placeCharacter(
+  seed: string,
+  panelWidth: number,
+  panelX: number,
+  panelZ: number,
+  accent: THREE.Color,
+): CrowdMember {
+  const hash = hashSeed(seed);
+  const side = hash & 1 ? 1 : -1;
+  // Unsigned shifts throughout: the hash runs past 2^31, so a signed
+  // `>>` turns it negative and every value derived from it with it — a
+  // negative `reach` walks that person *away* from the pointer, and a
+  // negative depth stands them outside the band entirely. Both were
+  // happening to roughly half the crowd; found by tracing the walk
+  // state, not by watching it, since a crowd half of which walks the
+  // wrong way just looks like a crowd milling about.
+  //
+  // ±8% build variation, so a row doesn't read as one figure stamped out
+  // N times, while everyone still shares the same scale.
+  const heightJitter = 1 + (((hash >>> 1) % 5) - 2) * 0.04;
+  const depth = ((hash >>> 4) % 100) / 99;
+
+  return {
+    id: seed,
+    homeX: panelX + side * (panelWidth / 2) * SIDE_FRACTION,
+    z: panelZ + DEPTH_FAR + depth * (DEPTH_NEAR - DEPTH_FAR),
+    height: CHARACTER_HEIGHT * heightJitter,
+    variant: hash >>> 9,
+    reach: 0.6 + (((hash >>> 7) % 8) / 7) * 0.7,
+    accent,
+  };
+}
+
+export interface CharacterPose {
   x: number;
   z: number;
   height: number;
-  /** Selects pose + build. Any integer; see poseFromVariant. */
   variant: number;
+  /** Walk cycle in turns — the legs scissor once per turn. */
+  phase: number;
+  /** 0 standing, 1 walking at full stride. Scales stride, swing and bob. */
+  gait: number;
+  /** Turn toward the direction of travel, in radians. */
+  yaw: number;
 }
 
 /**
- * Where the figure for a panel of this width stands, and which pose it
- * takes — both derived from `seed` (the panel's id) so a figure keeps
- * the same look and spot across refetches. The LOD refetch reconciles
- * panels continuously (see LivePanels), and a crowd that reshuffled its
- * poses every time the camera zoomed would read as flickering, not as a
- * crowd.
+ * Writes one character's segments into the crowd's buffers, starting at
+ * `firstVertex`. Exactly CHARACTER_SEGMENTS * 2 vertices are written.
  *
- * Beside the posts rather than between them: a figure is shorter than
- * the posts are tall, so it would otherwise be read against the
- * cross-bracing instead of against clean background.
+ * The head is drawn as stacked fill lines rather than a square outline,
+ * so it resolves to a *solid* dot of the panel's colour instead of a
+ * hollow box the figure looks like it's carrying — at the size these
+ * render, the head is the one part big enough to carry colour, and it's
+ * what ties each figure to the panel it belongs to.
  */
-export function placeCharacter(seed: string, panelWidth: number): CharacterPlacement {
-  const hash = hashSeed(seed);
-  const side = hash & 1 ? 1 : -1;
-  // ±8% build variation, so a row doesn't read as one figure stamped out
-  // N times, while everyone still shares the same scale.
-  const heightJitter = 1 + (((hash >> 1) % 5) - 2) * 0.04;
-
-  return {
-    x: side * (panelWidth / 2) * CHARACTER_SIDE_FRACTION,
-    z: CHARACTER_FORWARD_Z,
-    height: CHARACTER_HEIGHT * heightJitter,
-    variant: hash >> 4,
-  };
-}
-
-/**
- * Appends one figure's line segments to `positions` / `colors`.
- *
- * The head is drawn in the owning panel's own colour while the body
- * stays in the scene's structural black: at the size these render, the
- * head is the one part big enough to carry colour, and it's what ties
- * each figure to the panel it belongs to — visibly one person per panel,
- * not an anonymous crowd sprinkled around.
- */
-export function pushCharacter(
-  positions: number[],
-  colors: number[],
-  /**
-   * Turn pivot per vertex — every one of a figure's gets its feet, which
-   * is what lets the whole crowd turn toward the pointer from a single
-   * shared uniform (see engine/characterGaze.ts).
-   */
-  pivots: number[],
-  placement: CharacterPlacement,
+export function writeCharacter(
+  positions: Float32Array,
+  colors: Float32Array,
+  firstVertex: number,
+  pose: CharacterPose,
   ink: THREE.Color,
   accent: THREE.Color,
 ): void {
-  const { x, z, height: h } = placement;
-  const leanScale = 1 / h;
+  const h = pose.height;
+  // Turning a flat figure is a rotation of its local x into z.
+  const cos = Math.cos(pose.yaw);
+  const sin = Math.sin(pose.yaw);
+  let vertex = firstVertex;
 
-  const segment = (ax: number, ay: number, bx: number, by: number, color: THREE.Color) => {
-    positions.push(x + ax, ay, z, x + bx, by, z);
-    colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
-    pivots.push(x, z, leanScale, x, z, leanScale);
+  const put = (ax: number, ay: number, bx: number, by: number, color: THREE.Color) => {
+    const i = vertex * 3;
+    positions[i] = pose.x + ax * cos;
+    positions[i + 1] = ay;
+    positions[i + 2] = pose.z - ax * sin;
+    positions[i + 3] = pose.x + bx * cos;
+    positions[i + 4] = by;
+    positions[i + 5] = pose.z - bx * sin;
+    colors[i] = color.r;
+    colors[i + 1] = color.g;
+    colors[i + 2] = color.b;
+    colors[i + 3] = color.r;
+    colors[i + 4] = color.g;
+    colors[i + 5] = color.b;
+    vertex += 2;
   };
 
+  const { armPose, legSpread } = poseFromVariant(pose.variant);
+  const swing = Math.sin(pose.phase * Math.PI * 2);
+  // The body dips as the legs spread — twice per stride, which is what
+  // makes a walk read as weight shifting rather than a sliding sprite.
+  const bob = -Math.abs(swing) * 0.03 * h * pose.gait;
+
   const headHalf = 0.12 * h;
-  const headBottom = 0.76 * h;
-  const shoulderY = 0.72 * h;
-  const hipY = 0.42 * h;
+  const headBottom = 0.76 * h + bob;
+  const headTop = h + bob;
+  const shoulderY = 0.72 * h + bob;
+  const hipY = 0.42 * h + bob;
   const torsoHalf = 0.13 * h;
 
-  // Head — drawn as stacked fill lines rather than a square outline, so
-  // it resolves to a *solid* dot of the panel's colour instead of a
-  // hollow box the figure looks like it's carrying (compared on screen
-  // at both ends of the zoom range). The banding this leaves at maximum
-  // zoom sits comfortably inside the scene's CRT look.
   const headRows = 4;
   for (let row = 0; row < headRows; row++) {
-    const y = headBottom + ((row + 0.5) / headRows) * (h - headBottom);
-    segment(-headHalf, y, headHalf, y, accent);
+    const y = headBottom + ((row + 0.5) / headRows) * (headTop - headBottom);
+    put(-headHalf, y, headHalf, y, accent);
   }
 
-  // Neck + torso.
-  segment(0, shoulderY, 0, headBottom, ink);
-  segment(-torsoHalf, shoulderY, torsoHalf, shoulderY, ink);
-  segment(-torsoHalf, hipY, torsoHalf, hipY, ink);
-  segment(-torsoHalf, hipY, -torsoHalf, shoulderY, ink);
-  segment(torsoHalf, hipY, torsoHalf, shoulderY, ink);
+  put(0, shoulderY, 0, headBottom, ink);
+  put(-torsoHalf, shoulderY, torsoHalf, shoulderY, ink);
+  put(-torsoHalf, hipY, torsoHalf, hipY, ink);
+  put(-torsoHalf, hipY, -torsoHalf, shoulderY, ink);
+  put(torsoHalf, hipY, torsoHalf, shoulderY, ink);
 
-  const { armPose, legSpread } = poseFromVariant(placement.variant);
   for (const side of [-1, 1] as const) {
+    const legSwing = swing * side;
+    // Arms counter-swing against the legs, as they do when you walk.
+    const armSwing = -legSwing * 0.7;
+
     const raised = armPose === 1 && side === 1;
-    const handX = side * (raised ? 0.24 : armPose === 2 ? 0.24 : 0.19) * h;
-    const handY = raised ? 0.95 * h : armPose === 2 ? 0.52 * h : 0.44 * h;
-    segment(side * torsoHalf, shoulderY, handX, handY, ink);
-    segment(side * 0.07 * h, hipY, side * legSpread * h, 0, ink);
+    const restHandX = side * (raised ? 0.24 : armPose === 2 ? 0.24 : 0.19) * h;
+    const restHandY = (raised ? 0.95 : armPose === 2 ? 0.52 : 0.44) * h;
+    put(
+      side * torsoHalf,
+      shoulderY,
+      restHandX + armSwing * 0.16 * h * pose.gait,
+      restHandY + bob,
+      ink,
+    );
+
+    const footX = side * legSpread * h + legSwing * 0.17 * h * pose.gait;
+    // A leg only lifts on its forward swing; the other stays planted.
+    const footY = Math.max(0, legSwing) * 0.07 * h * pose.gait;
+    put(side * 0.07 * h, hipY, footX, footY, ink);
   }
 }
 
 function poseFromVariant(variant: number): { armPose: number; legSpread: number } {
   return {
-    // 0 = arms at rest, 1 = one arm up toward the sign, 2 = arms out.
+    // 0 = arms at rest, 1 = one arm up, 2 = arms out.
     armPose: variant % 3,
     legSpread: Math.floor(variant / 3) % 2 === 0 ? 0.06 : 0.11,
   };

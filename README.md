@@ -206,76 +206,46 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     sur ~1 pixel et les lampes disparaissent. Constaté sur une capture
     rapprochée, corrigé en dessinant la tête comme une barre *en travers*
     de la vue.
-- **1 panneau = 1 personnage** (`createCharacter.ts`) : chaque panneau
-  acheté pose une personne de plus sur la place, debout au pied de son
-  panneau — la foule *est* le compteur de ventes, lisible d'un coup d'œil
-  avant tout chiffre.
+- **1 panneau = 1 personnage** (`createCharacter.ts`, `Crowd.ts`) :
+  chaque panneau acheté pose une personne de plus sur la place — la foule
+  *est* le compteur de ventes, lisible d'un coup d'œil avant tout chiffre.
+  - **Ils marchent pour suivre le pointeur**, de gauche à droite. Le pas
+    avance avec la distance réellement parcourue et non avec le temps :
+    on s'arrête, les jambes s'arrêtent — c'est toute la différence entre
+    marcher et piétiner sur place. Bras à contre-balancier des jambes,
+    corps qui s'enfonce quand les jambes s'écartent, et chacun se tourne
+    vers là où il va.
+  - **Répartis en profondeur** sur quelques unités devant la rangée de
+    panneaux, certains passant même derrière les poteaux : tous à la même
+    profondeur, ce sont des découpes alignées ; étalés, ils se recouvrent
+    à des tailles différentes et commencent à se lire comme une foule.
+  - Tout le monde tient dans **un seul `LineSegments`** dont les tampons
+    sont réécrits sur le CPU. Les personnages étaient auparavant fondus
+    dans la géométrie de leur propre panneau — gratuit, mais figé ; la
+    marche demande un état par personne (où elle en est, où elle en est
+    de son pas) qu'un attribut figé à la construction ne peut pas porter.
+    Les sortir coûte **un** draw call pour toute la place, pas un par
+    panneau, et la réécriture (quelques milliers d'écritures de flottants
+    même au plafond du LOD) est sautée sur les frames où personne ne
+    bouge.
+  - Allure, carrure, profondeur, portée et côté du panneau sont tirés
+    d'un hash de l'`id` du panneau, jamais d'un aléatoire : le refetch
+    LOD réconcilie les panneaux en continu (voir `LivePanels`), et une
+    foule qui se rebattrait à chaque changement de zoom se lirait comme
+    du scintillement. Les marcheurs gardent aussi leur position et leur
+    pas d'un refetch à l'autre, retrouvés par `id`.
+  - Bug trouvé en traçant l'état de marche, pas en la regardant : le hash
+    dépasse 2³¹, donc un décalage `>>` **signé** le rendait négatif — et
+    avec lui la portée (la personne s'éloignait du pointeur au lieu de le
+    suivre) et la profondeur (elle se plantait hors de la bande). Environ
+    la moitié de la foule était concernée, ce qui à l'écran ressemblait
+    simplement à des gens qui vont et viennent.
   - La tête porte la couleur du panneau à qui la personne appartient, le
-    corps reste au noir structurel de la scène : à cette taille, la tête
-    est la seule partie assez grande pour porter une couleur, et c'est ce
-    qui rend le lien 1-pour-1 visible plutôt qu'une foule anonyme
-    saupoudrée autour. Elle est dessinée en lignes de remplissage
-    empilées et non en carré évidé — sinon la personne a l'air de porter
-    une boîte sur la tête (comparé à l'écran aux deux bouts de la plage
-    de zoom).
-  - Pose, carrure et côté du panneau sont tirés d'un hash de l'`id` du
-    panneau, pas d'un aléatoire : le refetch LOD réconcilie les panneaux
-    en continu (voir `LivePanels`), et une foule qui rebattrait ses poses
-    à chaque changement de zoom se lirait comme du scintillement, pas
-    comme une foule.
+    corps reste au noir structurel : à cette taille, la tête est la seule
+    partie assez grande pour porter une couleur, et c'est ce qui rend le
+    lien 1-pour-1 visible plutôt qu'une foule anonyme.
   - Échelle humaine réelle : un panneau publicitaire sur ses poteaux fait
-    ~7 m, une personne environ le quart — c'est ce qui fait lire la scène
-    comme *des gens à côté de panneaux* et non comme des décorations
-    dessus.
-  - **Les personnages suivent le pointeur** de gauche à droite
-    (`characterGaze.ts`) : ils s'orientent et surtout s'inclinent vers
-    lui, l'inclinaison croissant des pieds à la tête. La rotation seule
-    ne se voyait presque pas — une silhouette dessinée à plat qui tourne
-    sur son propre axe ne fait guère que s'affiner (mesuré : une centaine
-    de pixels changés sur toute la place) ; l'inclinaison, elle, est
-    sans ambiguïté à cette taille.
-  - **Zéro draw call supplémentaire pour autant** : la rotation se fait
-    dans le vertex shader, sur une géométrie déjà dessinée. Chaque
-    panneau garde son propre `ShaderMaterial` (pour qu'en supprimer un ne
-    retire pas le matériau sous les autres) mais tous pointent sur le
-    *même objet uniforme* : faire regarder toute la foule ailleurs est
-    une seule valeur écrite une fois par frame. Sources de shader
-    identiques, donc three.js ne compile le programme qu'une fois et
-    tous les matériaux le partagent (sa clé de cache est dérivée du texte
-    du shader — vérifié dans `WebGLPrograms`). Chaque sommet porte son
-    pivot de rotation : pour la structure c'est sa propre position, donc
-    elle ne bouge pas — pas de branche ni de drapeau, sa rotation est
-    celle du vecteur nul.
-  - Écrit comme une fonction qui pousse ses segments dans les tampons de
-    son panneau (même motif que les grilles de fenêtres des tours) plutôt
-    qu'une factory rendant un objet : chaque personnage est fondu dans le
-    `LineSegments` de son panneau, donc **un personnage par panneau coûte
-    zéro draw call supplémentaire** sur l'objet le plus multiplié de la
-    scène. Contrepartie assumée et documentée : fondu ainsi, un
-    personnage ne peut pas être animé séparément — le jour où ils
-    marchent, ils ressortent dans leur propre géométrie (instanciée), ce
-    qui est de toute façon la direction déjà prévue pour les panneaux
-    eux-mêmes.
-- **Panneaux au sol en 16:9**, plus grands, et leur texture dessinée
-  dans *ce même* ratio (`createPanel.ts`) : une texture carrée étirée sur
-  un plan 16:9 élargit chaque glyphe du ratio d'aspect — c'est ce qui
-  écrasait les titres en largeur, et cela n'aurait fait qu'empirer en
-  passant de 1,35:1 à 16:9. Texture portée à 512 de large : les panneaux
-  sont la seule chose du site qu'on est censé zoomer pour *lire*.
-  - La face porte maintenant le titre **et la meta-description**,
-    coupée à deux lignes avec césure et points de suspension.
-  - Correction trouvée en rendant une vraie description : un texte peut
-    déborder de deux façons — une ligne trop large, *ou* le texte qui
-    dépasse le nombre de lignes alors que chaque ligne tient. Seul le
-    premier cas était traité, donc une description tronquée par la limite
-    de lignes s'arrêtait en plein milieu d'une phrase sans le moindre
-    signe.
-  - Et surtout : la compensation de résolution au zoom jouait **dans les
-    deux sens**. Au zoom maximum elle faisait tomber la résolution
-    interne à ~0,38 du viewport — zoomer pour lire un panneau rendait
-    donc la scène plus grossière au moment précis où l'on voulait du
-    détail. Bornée à 1 côté bas : elle ne fait plus que compenser le
-    dézoom, ce qui était son seul objet.
+    ~7 m, une personne environ le quart.
 - Taille des panneaux au sol réduite une première fois (courbe
   montant→taille dans `lib/economy.ts` et `placeholders/sizing.ts`,
   panneau signature dans `mockPanels.ts`, hauteur des poteaux dans

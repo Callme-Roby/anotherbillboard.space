@@ -5,6 +5,7 @@ import type { PublicPanel } from "@/lib/api/serializePanel";
 import { getPusherClient, subscribeToPlaza } from "@/lib/pusher/client";
 import { PanelEvent } from "@/lib/realtime";
 
+import { type CrowdMember, placeCharacter } from "../objects/createCharacter";
 import { createGroundBillboard } from "../objects/createGroundBillboard";
 import { createPanelMesh, createRealPanelMesh } from "../objects/createPanel";
 import { placeholderRowLayout } from "../placeholders/layout";
@@ -32,10 +33,22 @@ const REFETCH_DEBOUNCE_MS = 400;
  * Pusher (`panel:created`/`panel:updated`) on top of that, without ever
  * rebuilding the whole scene — only the changed billboard is touched.
  */
+export interface LivePanelsOptions {
+  /**
+   * Called whenever the visible panel set changes, with the person each
+   * panel puts on the plaza. The panels own the roster; the crowd that
+   * draws it lives outside them (see Crowd.ts), so this reports rather
+   * than reaches into it.
+   */
+  onCrowdChange: (members: CrowdMember[]) => void;
+}
+
 export class LivePanels {
   readonly group: THREE.Group;
 
+  private readonly onCrowdChange: (members: CrowdMember[]) => void;
   private readonly billboardsById = new Map<string, THREE.Group>();
+  private readonly membersById = new Map<string, CrowdMember>();
   private usingMockPanels = true;
   private disposed = false;
 
@@ -43,7 +56,8 @@ export class LivePanels {
   private pendingZoom: number | null = null;
   private refetchTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-  constructor() {
+  constructor(options: LivePanelsOptions) {
+    this.onCrowdChange = options.onCrowdChange;
     this.group = new THREE.Group();
     this.group.name = "panels";
     this.showMockPanels();
@@ -62,11 +76,20 @@ export class LivePanels {
     const positions = placeholderRowLayout(widths);
     MOCK_PANELS.forEach((panel, i) => {
       const mesh = createPanelMesh(panel);
-      const billboard = createGroundBillboard(mesh, { seed: panel.id, accent: panel.color });
+      const billboard = createGroundBillboard(mesh);
       const pos = positions[i];
       billboard.position.set(pos.x, 0, pos.z);
       this.group.add(billboard);
+      this.membersById.set(
+        panel.id,
+        placeCharacter(panel.id, widths[i], pos.x, pos.z, new THREE.Color(panel.color)),
+      );
     });
+    this.publishCrowd();
+  }
+
+  private publishCrowd() {
+    this.onCrowdChange([...this.membersById.values()]);
   }
 
   /** Called the moment any real panel is about to appear — mocks and real panels never mix. */
@@ -76,6 +99,7 @@ export class LivePanels {
       this.group.remove(child);
       disposeObject3D(child); // recursive: each child is a billboard group, not a lone mesh
     }
+    this.membersById.clear();
     this.usingMockPanels = false;
   }
 
@@ -117,8 +141,10 @@ export class LivePanels {
       this.group.remove(billboard);
       disposeObject3D(billboard);
       this.billboardsById.delete(id);
+      this.membersById.delete(id);
     }
     panels.forEach((panel) => this.upsertBillboard(panel));
+    this.publishCrowd();
   }
 
   private subscribeToUpdates() {
@@ -129,6 +155,7 @@ export class LivePanels {
       if (this.disposed) return;
       this.clearMockPanelsIfNeeded();
       this.upsertBillboard(panel);
+      this.publishCrowd();
     };
     channel.bind(PanelEvent.Created, handle);
     channel.bind(PanelEvent.Updated, handle);
@@ -142,10 +169,20 @@ export class LivePanels {
     }
 
     const mesh = createRealPanelMesh(panel);
-    const billboard = createGroundBillboard(mesh, { seed: panel.id, accent: panel.dominantColor });
+    const billboard = createGroundBillboard(mesh);
     billboard.position.set(panel.positionX, 0, panel.positionY);
     this.group.add(billboard);
     this.billboardsById.set(panel.id, billboard);
+    this.membersById.set(
+      panel.id,
+      placeCharacter(
+        panel.id,
+        mesh.geometry.parameters.width,
+        panel.positionX,
+        panel.positionY,
+        new THREE.Color(panel.dominantColor ?? "#3a3d47"),
+      ),
+    );
   }
 
   dispose() {
@@ -155,5 +192,6 @@ export class LivePanels {
     getPusherClient()?.disconnect();
     disposeObject3D(this.group);
     this.billboardsById.clear();
+    this.membersById.clear();
   }
 }
