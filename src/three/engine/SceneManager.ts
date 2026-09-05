@@ -5,6 +5,8 @@ import { createGround } from "../objects/createGround";
 import { createGroundBillboard } from "../objects/createGroundBillboard";
 import { createPanelMesh } from "../objects/createPanel";
 import { SIGNATURE_PANEL } from "../placeholders/mockPanels";
+import { type BirdCall, createBirdCall } from "./birdCall";
+import { Birds } from "./Birds";
 import { CameraController } from "./CameraController";
 import * as C from "./constants";
 import { disposeObject3D } from "./disposeObject3D";
@@ -32,6 +34,8 @@ export class SceneManager {
   private readonly timer: THREE.Timer;
   private readonly resizeObserver: ResizeObserver;
   private readonly livePanels: LivePanels;
+  private readonly birds: Birds;
+  private readonly birdCall: BirdCall;
   /** Advances the central building's rotating summit — set in buildScene(). */
   private updateCentralBuilding: (delta: number) => void = () => {};
 
@@ -77,6 +81,13 @@ export class SceneManager {
     container.appendChild(this.renderer.domElement);
 
     this.buildScene();
+
+    // The flock and its call are separate concerns wired together here,
+    // so the flock stays silent (and testable) on its own.
+    this.birdCall = createBirdCall();
+    this.birds = new Birds({ onEnterView: () => this.birdCall.play() });
+    this.scene.add(this.birds.group);
+
     this.livePanels = new LivePanels();
     this.scene.add(this.livePanels.group);
     this.postProcessing = createPostProcessing(this.renderer, this.scene, this.camera, width, height);
@@ -140,6 +151,9 @@ export class SceneManager {
     const delta = this.timer.getDelta();
     this.cameraController.update(delta);
     this.updateCentralBuilding(delta);
+    // After the camera: the flock's "is it on screen yet" test projects
+    // through the live camera, so it must see this frame's zoom/pan.
+    this.birds.update(delta, this.camera);
     this.emitViewChangeIfNeeded();
     this.postProcessing.render(this.timer.getElapsed(), this.cameraController.currentZoom);
 
@@ -171,6 +185,8 @@ export class SceneManager {
     this.resizeObserver.disconnect();
     this.cameraController.detach(this.container);
     this.livePanels.dispose(); // also disconnects the realtime subscription
+    this.birds.dispose();
+    this.birdCall.dispose(); // closes the AudioContext and drops its unlock listeners
 
     // Covers everything still in the scene, including anything
     // livePanels.dispose() already handled above — redundant disposal

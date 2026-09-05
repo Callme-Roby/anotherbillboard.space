@@ -3,7 +3,11 @@ import * as THREE from "three";
 /** Disposes geometry + material(s) + any texture maps for one object and (by default) its descendants. */
 export function disposeObject3D(root: THREE.Object3D, recursive = true): void {
   const visit = (object: THREE.Object3D) => {
-    if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
+    // THREE.Line, not LineSegments: LineSegments and LineLoop both
+    // *extend* Line (checked against three.js's source), so testing the
+    // subclass silently skipped plain Line objects — which the birds'
+    // wings and bodies are (createBird.ts), the first in the scene.
+    if (object instanceof THREE.Mesh || object instanceof THREE.Line) {
       object.geometry.dispose();
       const material = object.material;
       if (Array.isArray(material)) {

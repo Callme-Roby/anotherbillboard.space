@@ -312,6 +312,43 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     courbure est alors la plus visible) : plus aucune coupure au raccord,
     ni au bord haut ni au bord bas, et la vignette continue d'assombrir
     les tours proches des bords de l'écran.
+- **Oiseaux** (`createBird.ts`, `Birds.ts`) : un vol de trois corbeaux au
+  maximum traverse le ciel à hauteur des bâtiments, ailes battantes,
+  légèrement inclinés et tanguant avec leur trajectoire.
+  - **La formation change d'un vol à l'autre** — deux de front avec un
+    troisième qui suit un peu en arrière et en dessous, un V, une paire
+    seule, une file décalée. Formation, altitude, profondeur, vitesse et
+    sens sont des cycles de longueurs différentes (4, 3, 5, 3, 2), donc
+    il faut 60 vols pour revoir la même combinaison : varié sans
+    aléatoire, et une capture du vol N reste reproductible.
+  - **"Cui-cui" quand un vol entre dans le cadre** (`birdCall.ts`) — y
+    compris quand c'est un zoom qui l'y amène, puisque le test projette
+    les oiseaux à travers la caméra du moment. Déclenché sur le *front*
+    (invisible → visible) avec un délai de garde, sinon un oiseau posé
+    sur le bord du frustum piaillerait image après image. Le son est
+    synthétisé (deux chirps montants d'un oscillateur) plutôt que chargé
+    : quelques centaines d'octets de code au lieu d'un asset à
+    télécharger et décoder, et il se désaccorde légèrement à chaque fois
+    pour ne pas sonner comme le même échantillon rejoué.
+  - Les navigateurs refusent l'audio avant une vraie interaction : le
+    contexte n'est créé qu'au premier geste et tout appel avant cela est
+    simplement ignoré — un pépiement n'est jamais une raison d'avertir ou
+    de réessayer. Vérifié : aucun `AudioContext` avant le clic, un appel
+    (= deux chirps) à l'entrée du vol dans le cadre.
+  - Deux détails sont venus de l'écran. Les oiseaux volaient d'abord à
+    mi-hauteur des tours et passaient donc l'essentiel d'une traversée
+    *derrière* elles ; remontés au niveau des toits. Et à l'échelle
+    réelle (~0,33 unité pour 1 m d'envergure) ils tombaient sur un ou
+    deux texels, où la frange chromatique de la passe CRT est *plus large
+    que l'oiseau* : envergure doublée pour qu'une silhouette se lise.
+  - Les oiseaux ne tournent que partiellement vers leur cap
+    (`YAW_TOWARD_HEADING`) : orientés franchement dans leur direction,
+    ils présenteraient la tranche à une caméra frontale, soit un trait
+    vertical qui bat. Stylisation assumée.
+  - Au passage, `disposeObject3D` ne libérait pas les `THREE.Line` : il
+    testait `LineSegments`, qui *hérite* de `Line` et non l'inverse
+    (vérifié dans les sources de three.js). Sans oiseaux dans la scène
+    rien ne l'exposait — ce sont les premiers `Line` du projet.
 - Minimap (bas-gauche) et légende (bas-droite), mises à jour hors du
   cycle de rendu React (event bus + DOM direct, pas de re-render à
   chaque frame de scroll).
@@ -485,7 +522,7 @@ src/
 ├── three/
 │   ├── engine/      # SceneManager (orchestrateur), CameraController, PostProcessing,
 │   │                 # LivePanels (données réelles + temps réel), constants, sceneEvents
-│   ├── objects/      # Factories de mesh : volume, gratte-ciel (tiers/fenêtres/antennes), skyline, supports d'écran, panneau (mock + réel), personnage, sol
+│   ├── objects/      # Factories de mesh : volume, gratte-ciel (tiers/fenêtres/antennes), skyline, supports d'écran, panneau (mock + réel), personnage, oiseau, sol
 │   ├── shaders/      # CRTShader
 │   └── placeholders/ # Données/mise en page de démonstration (utilisées tant qu'aucun panneau réel n'existe)
 └── lib/
