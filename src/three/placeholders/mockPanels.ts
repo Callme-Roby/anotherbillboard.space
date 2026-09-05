@@ -28,12 +28,32 @@ export const MOCK_PANELS: PlaceholderPanel[] = [
   { id: "mock-design-3", amount: 1500, color: "#2ec4b6", label: "DS" },
 ];
 
-/** The central building's top 1-4 ranking screens. */
+/**
+ * The central building's top 1-4 ranking screens — the rotating summit
+ * assembly on the tallest tower (see createCentralBuilding.ts). Sized
+ * small on purpose, like every other panel in the scene (see
+ * placeholders/sizing.ts and lib/economy.ts): the building itself should
+ * read as the reward for a top rank, not a screen competing with it for
+ * attention.
+ */
 export const RANK_SLOT_PLACEHOLDERS: PlaceholderPanel[] = [
-  { id: "rank-1", amount: 0, color: "#f4d35e", label: "1", size: { width: 1, height: 0.9 } },
-  { id: "rank-2", amount: 0, color: "#cfd8dc", label: "2", size: { width: 0.9, height: 0.8 } },
-  { id: "rank-3", amount: 0, color: "#c98a4b", label: "3", size: { width: 0.85, height: 0.75 } },
-  { id: "rank-4", amount: 0, color: "#78909c", label: "4", size: { width: 0.8, height: 0.7 } },
+  { id: "rank-1", amount: 0, color: "#f4d35e", label: "1", size: { width: 0.5, height: 0.45 } },
+  { id: "rank-2", amount: 0, color: "#cfd8dc", label: "2", size: { width: 0.46, height: 0.41 } },
+  { id: "rank-3", amount: 0, color: "#c98a4b", label: "3", size: { width: 0.43, height: 0.38 } },
+  { id: "rank-4", amount: 0, color: "#78909c", label: "4", size: { width: 0.4, height: 0.35 } },
+];
+
+/**
+ * Small decorative facade screens dotted across the central building's
+ * other towers — not tied to any real ranking or purchase, just set
+ * dressing so the cluster reads as a lived-in skyline (per a user-
+ * provided reference) rather than bare boxes. See createCentralBuilding.ts.
+ */
+export const FACADE_DECOR_PLACEHOLDERS: PlaceholderPanel[] = [
+  { id: "facade-decor-1", amount: 0, color: "#6b8f71", label: "＋", size: { width: 0.4, height: 0.35 } },
+  { id: "facade-decor-2", amount: 0, color: "#b5651d", label: "%", size: { width: 0.38, height: 0.33 } },
+  { id: "facade-decor-3", amount: 0, color: "#4a6fa5", label: "◆", size: { width: 0.36, height: 0.32 } },
+  { id: "facade-decor-4", amount: 0, color: "#9a5b8f", label: "★", size: { width: 0.42, height: 0.37 } },
 ];
 
 /**
@@ -51,5 +71,5 @@ export const SIGNATURE_PANEL: PlaceholderPanel = {
   // looking at the render, not assumed. A terse signature mark reads
   // better here anyway.
   label: "ROBY",
-  size: { width: 3, height: 1.4 },
+  size: { width: 1.5, height: 0.7 },
 };

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { RANK_SLOT_PLACEHOLDERS } from "../placeholders/mockPanels";
+import { FACADE_DECOR_PLACEHOLDERS, RANK_SLOT_PLACEHOLDERS } from "../placeholders/mockPanels";
 import type { BuildingDimensions } from "./createBuilding";
 import { createBuildingMesh } from "./createBuilding";
 import { createPanelMesh } from "./createPanel";
@@ -29,6 +29,10 @@ interface TowerSpec extends BuildingDimensions {
 // packing) so each one reads as its own standalone structure. Still
 // plain boxes — the "simple geometry, unlit" spec applies to shape count
 // and material, not to silhouette variety.
+//
+// Index 2 (x=0) is the tallest and carries the rotating summit — see
+// SUMMIT_TOWER_INDEX below; the rest each carry one decorative facade
+// screen (FACADE_MOUNTS).
 const TOWERS: TowerSpec[] = [
   { x: -5.5, z: 1.3, width: 2.0, height: 5.0, depth: 2.0 },
   { x: -2.8, z: -0.9, width: 1.6, height: 6.6, depth: 1.6 },
@@ -37,37 +41,53 @@ const TOWERS: TowerSpec[] = [
   { x: 5.6, z: 0.9, width: 2.2, height: 4.0, depth: 2.2 },
 ];
 
+const SUMMIT_TOWER_INDEX = 2;
+
 // Small cap on the central spire for a less flat silhouette at the peak.
 const SPIRE_CAP: BuildingDimensions = { width: 1.3, height: 1.1, depth: 1.3 };
 
-type Mount =
-  | { kind: "rooftop"; tower: number; poleHeight: number }
-  | { kind: "facade"; tower: number; heightFraction: number };
-
-// How each of the 4 ranking screens mounts onto the cluster — per a
-// user-provided skyline reference: showcase billboards on rooftop masts
-// above the tallest towers (most visible, reserved for the top ranks),
-// smaller screens embedded flush on shorter towers' faces partway up.
-// `tower` indexes into TOWERS above; must stay the same length as
-// RANK_SLOT_PLACEHOLDERS (one mount per ranked screen). Left unmapped:
-// TOWERS[0], so the cluster isn't screen-on-every-tower uniform,
-// matching the reference's own unevenness.
-const RANK_MOUNTS: Mount[] = [
-  { kind: "rooftop", tower: 2, poleHeight: 0.5 }, // rank 1 — tallest, central spire
-  { kind: "rooftop", tower: 3, poleHeight: 0.3 }, // rank 2 — second-tallest
-  { kind: "facade", tower: 1, heightFraction: 0.55 }, // rank 3
-  { kind: "facade", tower: 4, heightFraction: 0.5 }, // rank 4
+// Where each non-summit tower's decorative facade screen sits, as a
+// fraction of that tower's own height — varied a little per tower rather
+// than a single flat fraction, so they don't all line up in a row.
+// Index into TOWERS; must be all indices except SUMMIT_TOWER_INDEX, same
+// length/order as FACADE_DECOR_PLACEHOLDERS.
+const FACADE_MOUNTS: { tower: number; heightFraction: number }[] = [
+  { tower: 0, heightFraction: 0.5 },
+  { tower: 1, heightFraction: 0.62 },
+  { tower: 3, heightFraction: 0.45 },
+  { tower: 4, heightFraction: 0.55 },
 ];
 
 const POLE_COLOR = 0xffffff;
 
+// The rotating summit assembly: a mast above the tallest tower's apex
+// carrying 4 screens arranged like spokes, slowly turning around it —
+// the top-4 cumulative-payment ranking, replacing an earlier version
+// scattered as individual rooftop/facade mounts across several towers
+// (see git history). Deliberately slow (radians/second): this is meant
+// to read as a real rotating sign, not spin fast enough to be
+// distracting or to blur under the scene's low internal render
+// resolution.
+const SUMMIT_MAST_HEIGHT = 0.5;
+const SUMMIT_ROTOR_RADIUS = 0.55;
+const SUMMIT_ROTOR_SPEED = 0.3;
+
+export interface CentralBuilding {
+  group: THREE.Group;
+  /** Advances the rotating summit. `delta` in seconds. */
+  update: (delta: number) => void;
+}
+
 /**
  * The central building: a cluster of individually-grounded towers (see
- * TOWERS above), carrying the top 1-4 cumulative-payment ranking as
- * screens (regular panel meshes — a building's screens are just panels)
- * mounted directly on the cluster per RANK_MOUNTS above.
+ * TOWERS above). Carries the top 1-4 cumulative-payment ranking as a
+ * rotating 4-screen summit on the tallest tower (see
+ * createRotatingSummit), plus one small decorative facade screen per
+ * other tower (FACADE_MOUNTS) — not tied to any ranking, just set
+ * dressing so the cluster reads as a lived-in skyline rather than bare
+ * boxes, per a user-provided reference.
  */
-export function createCentralBuilding(): THREE.Group {
+export function createCentralBuilding(): CentralBuilding {
   const group = new THREE.Group();
   group.name = "central-building";
 
@@ -83,48 +103,61 @@ export function createCentralBuilding(): THREE.Group {
     }
   }
 
-  RANK_SLOT_PLACEHOLDERS.forEach((slot, i) => {
-    const mount = RANK_MOUNTS[i];
+  FACADE_MOUNTS.forEach((mount, i) => {
     const tower = TOWERS[mount.tower];
-    const mesh = createPanelMesh(slot);
-
-    if (mount.kind === "rooftop") {
-      const apexHeight = tower.x === 0 ? tower.height + SPIRE_CAP.height : tower.height;
-      group.add(createRooftopMount(mesh, tower.x, tower.z, apexHeight, mount.poleHeight));
-    } else {
-      const frontZ = tower.z + tower.depth / 2 + 0.02;
-      mesh.position.set(tower.x, tower.height * mount.heightFraction, frontZ);
-      group.add(mesh);
-    }
+    const mesh = createPanelMesh(FACADE_DECOR_PLACEHOLDERS[i]);
+    const frontZ = tower.z + tower.depth / 2 + 0.02;
+    mesh.position.set(tower.x, tower.height * mount.heightFraction, frontZ);
+    group.add(mesh);
   });
 
-  return group;
+  const summitTower = TOWERS[SUMMIT_TOWER_INDEX];
+  const apexY = summitTower.height + SPIRE_CAP.height;
+  const summit = createRotatingSummit(summitTower.x, summitTower.z, apexY);
+  group.add(summit.group);
+
+  return { group, update: summit.update };
 }
 
 /**
- * A screen standing above a roofline on a single central mast — the
- * "showcase billboard" mount, reserved for the tallest towers where it
- * reads clearly against the sky rather than another tower behind it. One
- * mast rather than twin support struts: at the scene's low internal
- * render resolution (see PostProcessing) a pair of thin adjacent struts
- * has little margin to still read as two distinct shapes, where a single
- * slightly thicker mast stays legible at any zoom level.
+ * Four screens standing above a roofline on a single central mast,
+ * arranged like spokes and slowly rotating around it — the "showcase"
+ * mount, reserved for the tallest tower where it reads clearly against
+ * the sky. One mast rather than a support per screen: at the scene's low
+ * internal render resolution (see PostProcessing) several thin adjacent
+ * struts have little margin to still read as distinct shapes, where a
+ * single slightly thicker mast stays legible at any zoom level.
  */
-function createRooftopMount(
-  panel: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>,
+function createRotatingSummit(
   x: number,
   z: number,
-  roofY: number,
-  poleHeight: number,
-): THREE.Group {
+  apexY: number,
+): { group: THREE.Group; update: (delta: number) => void } {
   const group = new THREE.Group();
 
-  const mast = createBuildingMesh({ width: 0.15, height: poleHeight, depth: 0.15 }, POLE_COLOR);
-  mast.position.set(x, roofY, z);
+  const mast = createBuildingMesh({ width: 0.12, height: SUMMIT_MAST_HEIGHT, depth: 0.12 }, POLE_COLOR);
+  mast.position.set(x, apexY, z);
   group.add(mast);
 
-  panel.position.set(x, roofY + poleHeight + panel.geometry.parameters.height / 2, z);
-  group.add(panel);
+  const rotor = new THREE.Group();
+  rotor.position.set(x, apexY + SUMMIT_MAST_HEIGHT, z);
+  RANK_SLOT_PLACEHOLDERS.forEach((slot, i) => {
+    const angle = (i / RANK_SLOT_PLACEHOLDERS.length) * Math.PI * 2;
+    const mesh = createPanelMesh(slot);
+    // Positioned and rotated by the *same* angle: the plane's local +z
+    // (its front, non-mirrored face — see createPanel.ts's fixed +Z
+    // convention) then points the same way it's offset, so each screen
+    // faces outward along its own spoke rather than across the rotor.
+    mesh.position.set(Math.sin(angle) * SUMMIT_ROTOR_RADIUS, 0, Math.cos(angle) * SUMMIT_ROTOR_RADIUS);
+    mesh.rotation.y = angle;
+    rotor.add(mesh);
+  });
+  group.add(rotor);
 
-  return group;
+  return {
+    group,
+    update: (delta: number) => {
+      rotor.rotation.y += delta * SUMMIT_ROTOR_SPEED;
+    },
+  };
 }

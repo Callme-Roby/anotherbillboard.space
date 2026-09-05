@@ -32,6 +32,8 @@ export class SceneManager {
   private readonly timer: THREE.Timer;
   private readonly resizeObserver: ResizeObserver;
   private readonly livePanels: LivePanels;
+  /** Advances the central building's rotating summit — set in buildScene(). */
+  private updateCentralBuilding: (delta: number) => void = () => {};
 
   private rafId: number | null = null;
   private disposed = false;
@@ -94,7 +96,10 @@ export class SceneManager {
 
   private buildScene() {
     this.scene.add(createGround());
-    this.scene.add(createCentralBuilding());
+
+    const centralBuilding = createCentralBuilding();
+    this.scene.add(centralBuilding.group);
+    this.updateCentralBuilding = centralBuilding.update;
 
     // Fixed, non-purchasable, excentered — outside the placement algorithm.
     // x=-15 clears the mock/live panel row (~±11 wide, see LivePanels)
@@ -131,6 +136,7 @@ export class SceneManager {
     this.timer.update();
     const delta = this.timer.getDelta();
     this.cameraController.update(delta);
+    this.updateCentralBuilding(delta);
     this.emitViewChangeIfNeeded();
     this.postProcessing.render(this.timer.getElapsed(), this.cameraController.currentZoom);
 

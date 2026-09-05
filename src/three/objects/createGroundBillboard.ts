@@ -7,8 +7,12 @@ import { createBuildingMesh } from "./createBuilding";
 // git history). The legs are a uniform size regardless of the panel's
 // own size for now: varying the stand with the panel (a taller payment
 // getting a taller/sturdier-looking stand) is future work, not yet done.
-const LEG_HEIGHT = 1.3;
-const LEG_THICKNESS = 0.1;
+// Height scaled down alongside the panels themselves (see
+// placeholders/sizing.ts and lib/economy.ts) so the stand stays
+// proportionate to the now-smaller sign it holds, rather than towering
+// over it.
+const LEG_HEIGHT = 0.7;
+const LEG_THICKNESS = 0.08;
 // Each leg sits this far from center, as a fraction of the panel's own
 // half-width — inset from the panel's edges rather than flush with them,
 // like a real sign's support posts.

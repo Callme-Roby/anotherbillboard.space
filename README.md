@@ -60,17 +60,25 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
   recherchés : que chaque tour se lise clairement comme un bâtiment à
   part plutôt qu'un seul bloc fusionné, et une vraie sensation de
   profondeur/parallaxe entre elles en zoomant — pas seulement une
-  silhouette qui varie en hauteur. Les 4 écrans de classement (top-4
-  paiements — voir `GET /api/buildings` plus bas) sont répartis sur le
-  cluster plutôt qu'alignés sur une seule face, d'après une référence
-  visuelle fournie par l'utilisateur : les rangs 1 et 2 sur des mâts en
-  toiture au-dessus des deux tours les plus hautes (écrans "vitrine", les
-  plus visibles), les rangs 3 et 4 encastrés à mi-hauteur sur la façade
-  de deux tours plus basses. Encore statique pour l'instant : ces 4
-  emplacements affichent des données de démonstration
-  (`RANK_SLOT_PLACEHOLDERS`), rien côté scène ne consomme encore
-  `GET /api/buildings` — la disposition est prête, le branchement sur le
-  vrai classement reste à faire.
+  silhouette qui varie en hauteur.
+  - Les 4 écrans de classement (top-4 paiements — voir `GET /api/buildings`
+    plus bas) sont regroupés en un **sommet rotatif** sur la tour la plus
+    haute : un mât au-dessus de son pinacle porte les 4 écrans disposés
+    en croix, qui tournent lentement ensemble autour de l'axe du mât
+    (`createRotatingSummit`, `SceneManager` fait avancer la rotation
+    chaque frame). Remplace une version précédente où les 4 rangs étaient
+    dispersés (mâts + façades sur plusieurs tours) — regroupés ici pour
+    que la position la plus haute du classement se voie vraiment comme
+    une récompense/un point focal, pas un détail perdu dans le décor.
+    Encore statique : ces 4 emplacements affichent des données de
+    démonstration (`RANK_SLOT_PLACEHOLDERS`), rien côté scène ne
+    consomme encore `GET /api/buildings` — la disposition est prête, le
+    branchement sur le vrai classement reste à faire.
+  - Un petit écran décoratif par tour restante (4 au total), encastré en
+    façade à des hauteurs variées — pas relié à un vrai classement,
+    juste du décor pour que le cluster se lise comme un skyline vivant
+    plutôt que des boîtes nues (`FACADE_DECOR_PLACEHOLDERS`), d'après une
+    référence visuelle fournie par l'utilisateur.
 - Sol + grille, panneau signature "ROBY" fixe et excentré.
 - Caméra perspective à *rig* fixe (position/visée de base posées une
   fois), vue de face au niveau du sol (pas d'angle plongeant) :
@@ -125,6 +133,16 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
   (signature "ROBY" comprise), indépendamment du montant/de la taille du
   panneau — les faire varier avec le panneau est un prochain pas, pas
   encore fait.
+- Taille des panneaux nettement réduite (courbe montant→taille dans
+  `lib/economy.ts` et `placeholders/sizing.ts`, panneaux de rang/décor
+  dans `mockPanels.ts`, pieds dans `createGroundBillboard.ts` — tout
+  redescendu ensemble) : ils cachaient les bâtiments et rivalisaient
+  visuellement avec eux, ce qui vidait de son sens la récompense
+  "position haute dans le classement = visible sur un bâtiment" — un
+  panneau au sol énorme rendait un petit écran de bâtiment moins
+  intéressant, pas plus. Les bâtiments doivent rester l'élément qui
+  domine visuellement, les panneaux au sol un détail qu'on découvre en
+  zoomant.
 - En-tête (`Header.tsx`), haut-centre : nom du site, même traitement HUD
   compact que la légende/minimap plutôt qu'une vraie barre de navigation
   (rien à y mettre sur un site one-page) — seul élément du HUD qui n'est
@@ -245,6 +263,40 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
 8. **Notification "dépassé"** (Resend) : si `notifyOnOutgrown` était
    coché, email envoyé aux panneaux dont le montant vient d'être
    dépassé par le changement.
+
+### Chargement par zoom (LOD panneaux)
+
+`GET /api/panels?zoom=` (0 = dézoomé au max, 1 = zoomé au max, même
+échelle que `CameraController.normalizedZoom`) fait varier le nombre de
+panneaux renvoyés (top-N par montant) entre `BASE_LIMIT` (20, à la vue
+d'ensemble par défaut) et `MAX_LIMIT` (200, une fois zoomé à fond) — une
+fonction continue du zoom, pas un plafond fixe. Le paramètre existait
+déjà côté route mais n'était jamais réellement envoyé par le client
+(zoom toujours par défaut à 0, donc toujours `BASE_LIMIT`) — trouvé en
+relisant le code, pas rapporté comme un bug ; c'était bien la moitié
+"pas encore faite" documentée dans le commentaire de la route.
+
+Côté client (`LivePanels.ts`), écoute l'événement `scene:viewchange` (le
+même bus que la minimap) et relance la requête quand le zoom a
+suffisamment changé (`ZOOM_REFETCH_THRESHOLD`) — pas à chaque frame
+d'un zoom en cours, avec un throttle à bord traînant
+(`REFETCH_DEBOUNCE_MS` = 400 ms) : la requête part au plus toutes les
+400 ms pendant qu'on zoome en continu, avec la valeur de zoom la plus
+récente à ce moment-là, plutôt que d'attendre l'arrêt du geste — pour
+que les panneaux se révèlent progressivement pendant qu'on zoome, pas
+seulement une fois arrêté. Chaque réponse est réconciliée avec ce qui
+est déjà affiché (ajoute les nouveaux, retire ceux qui sortent du
+budget) plutôt qu'un simple ajout — vérifié en observant les vraies
+requêtes réseau pendant un geste de zoom (`?zoom=0.246` →
+`?zoom=0.653` → `?zoom=0.966`), pas en supposant que le code faisait
+ce qu'il devait.
+
+C'est un vrai budget (moins de panneaux construits/texturés tant qu'on
+n'a pas zoomé) mais toujours pas le vrai LOD du brief : filtrage par
+`viewport` (bornes monde actuellement visibles), pas seulement un top-N
+global — le paramètre `viewport` existe déjà côté route mais n'est pas
+encore utilisé, pareil pour l'atlas de textures et l'instancing prévus
+par le brief. Prochaine étape, pas encore faite.
 
 ### Bâtiments
 
