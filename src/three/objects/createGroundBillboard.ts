@@ -1,5 +1,6 @@
 import * as THREE from "three";
 
+import { createBillboardLineMaterial } from "../engine/characterGaze";
 import { placeCharacter, pushCharacter } from "./createCharacter";
 
 /**
@@ -68,8 +69,9 @@ export interface GroundBillboardOptions {
  * that panel brings to the plaza (see createCharacter.ts).
  *
  * The whole structure — posts, bracing, footings, bezel, catwalk and
- * lamps — is a *single* `LineSegments`, with the lamp heads' warm color
- * carried in a vertex-color attribute rather than a second material.
+ * lamps, and the panel's own figure — is a *single* `LineSegments`, with
+ * the lamp heads' warm color carried in a vertex-color attribute rather
+ * than a second material.
  * That's what lets this object be the detailed one: it costs two draw
  * calls (structure + picture) no matter how much detail is added to it,
  * where the old two-posts-as-boxes version already cost five for far
@@ -96,6 +98,7 @@ export function createGroundBillboard(
 
   const positions: number[] = [];
   const colors: number[] = [];
+  const pivots: number[] = [];
   const structureColor = new THREE.Color(STRUCTURE_COLOR);
   const lampColor = new THREE.Color(LAMP_COLOR);
 
@@ -106,6 +109,11 @@ export function createGroundBillboard(
   ) => {
     positions.push(ax, ay, az, bx, by, bz);
     colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
+    // The structure never turns, so each of its vertices pivots about
+    // itself — see createBillboardLineMaterial for why that is all it
+    // takes to hold it still — and a zero lean scale keeps it out of the
+    // lean too.
+    pivots.push(ax, az, 0, bx, bz, 0);
   };
 
   const halfWidth = panelWidth / 2;
@@ -169,6 +177,7 @@ export function createGroundBillboard(
   pushCharacter(
     positions,
     colors,
+    pivots,
     placeCharacter(options.seed, panelWidth),
     structureColor,
     options.accent ? new THREE.Color(options.accent) : structureColor,
@@ -177,7 +186,8 @@ export function createGroundBillboard(
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true })));
+  geometry.setAttribute("aPivot", new THREE.Float32BufferAttribute(pivots, 3));
+  group.add(new THREE.LineSegments(geometry, createBillboardLineMaterial()));
 
   return group;
 }

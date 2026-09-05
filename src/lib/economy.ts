@@ -27,8 +27,11 @@ export const CURRENCY = "eur";
 // only means something if ground panels are modest by comparison (see
 // placeholders/sizing.ts for the mock-scene version of this same curve,
 // kept separately but scaled the same way).
-const SIZE_MIN = 0.35;
-const SIZE_SCALE = 0.19;
+// Raised again alongside the move to 16:9: a panel now has to carry a
+// readable title *and* a two-line description (see createPanel.ts), and
+// the previous size only ever had room for a short code.
+const SIZE_MIN = 0.46;
+const SIZE_SCALE = 0.24;
 const SIZE_NORMALIZER_CENTS = 2000; // ~20€ reference point
 
 export function sizeFromAmountCents(amountCents: number): number {
@@ -36,8 +39,12 @@ export function sizeFromAmountCents(amountCents: number): number {
   return SIZE_MIN + SIZE_SCALE * Math.log2(1 + amount / SIZE_NORMALIZER_CENTS);
 }
 
-/** Banner-ish aspect ratio applied on top of the scalar size above. */
-export const PANEL_ASPECT_RATIO = 1.35;
+/**
+ * 16:9, shared by the panel geometry *and* its texture canvas (see
+ * createPanel.ts) — a texture drawn at a different ratio than the plane
+ * it lands on stretches every glyph on it.
+ */
+export const PANEL_ASPECT_RATIO = 16 / 9;
 
 export function panelDimensionsFromAmountCents(amountCents: number): {
   width: number;

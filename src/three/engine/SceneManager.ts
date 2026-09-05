@@ -9,6 +9,7 @@ import { SIGNATURE_PANEL } from "../placeholders/mockPanels";
 import { type BirdCall, createBirdCall } from "./birdCall";
 import { Birds } from "./Birds";
 import { CameraController } from "./CameraController";
+import { type CharacterGaze, createCharacterGaze } from "./characterGaze";
 import * as C from "./constants";
 import { disposeObject3D } from "./disposeObject3D";
 import { LivePanels } from "./LivePanels";
@@ -37,6 +38,7 @@ export class SceneManager {
   private readonly livePanels: LivePanels;
   private readonly birds: Birds;
   private readonly birdCall: BirdCall;
+  private readonly characterGaze: CharacterGaze;
   /** Advances the central building's rotating summit — set in buildScene(). */
   private updateCentralBuilding: (delta: number) => void = () => {};
 
@@ -64,7 +66,7 @@ export class SceneManager {
       minZoom: C.CAMERA_MIN_ZOOM,
       absoluteMinZoom: C.CAMERA_ABSOLUTE_MIN_ZOOM,
       maxZoom: C.CAMERA_MAX_ZOOM,
-      initialZoom: C.CAMERA_INITIAL_ZOOM,
+      landingHalfWidth: C.CAMERA_LANDING_HALF_WIDTH,
       damping: C.CAMERA_DAMPING,
       zoomSpeed: C.CAMERA_ZOOM_SPEED,
       overviewHalfWidth: C.CAMERA_OVERVIEW_HALF_WIDTH,
@@ -95,6 +97,8 @@ export class SceneManager {
       onEnterView: () => this.birdCall.play(),
     });
     this.scene.add(this.birds.group);
+
+    this.characterGaze = createCharacterGaze(container);
 
     this.livePanels = new LivePanels();
     this.scene.add(this.livePanels.group);
@@ -172,6 +176,7 @@ export class SceneManager {
     // After the camera: the flock's "is it on screen yet" test projects
     // through the live camera, so it must see this frame's zoom/pan.
     this.birds.update(delta, this.camera);
+    this.characterGaze.update(delta);
     this.emitViewChangeIfNeeded();
     this.postProcessing.render(this.timer.getElapsed(), this.cameraController.currentZoom);
 
@@ -205,6 +210,7 @@ export class SceneManager {
     this.livePanels.dispose(); // also disconnects the realtime subscription
     this.birds.dispose();
     this.birdCall.dispose(); // closes the AudioContext and drops its unlock listeners
+    this.characterGaze.dispose();
 
     // Covers everything still in the scene, including anything
     // livePanels.dispose() already handled above — redundant disposal

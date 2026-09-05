@@ -33,9 +33,16 @@ export interface PostProcessingHandle {
  */
 function zoomResolutionCompensation(zoom: number): number {
   const safeZoom = Math.max(zoom, 0.01);
+  // Clamped at 1 on the low side, so this only ever *raises* resolution
+  // on zoom-out and never lowers it on zoom-in. Unclamped it ran both
+  // ways: at maximum zoom-in it dropped the internal resolution to ~0.38
+  // of the viewport, so zooming in to read a panel made the scene render
+  // coarser at exactly the moment you wanted detail. Compensating
+  // zoom-out was always the point (see the constants); penalising
+  // zoom-in was a side effect of the same formula.
   return Math.min(
     ZOOM_RESOLUTION_COMPENSATION_MAX,
-    Math.pow(1 / safeZoom, ZOOM_RESOLUTION_COMPENSATION_EXPONENT),
+    Math.max(1, Math.pow(1 / safeZoom, ZOOM_RESOLUTION_COMPENSATION_EXPONENT)),
   );
 }
 

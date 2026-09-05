@@ -6,7 +6,19 @@ import { PANEL_ASPECT_RATIO, sizeFromAmountCents } from "@/lib/economy";
 import type { PlaceholderPanel } from "../placeholders/mockPanels";
 import { sizeFromAmount } from "../placeholders/sizing";
 
-const TEXTURE_SIZE = 256;
+/**
+ * Panel texture, in the panel's own aspect ratio rather than square. A
+ * square canvas stretched across a 16:9 plane widens every glyph on it
+ * by the aspect ratio — which is exactly what made titles look squashed
+ * wide before, and would only have got worse as the panels moved from
+ * 1.35:1 to 16:9.
+ *
+ * 512 across rather than 256: the panels are the one thing on the site
+ * you are meant to zoom in and *read*, so their texture should still
+ * have detail left when you do.
+ */
+const TEXTURE_WIDTH = 512;
+const TEXTURE_HEIGHT = Math.round(TEXTURE_WIDTH / PANEL_ASPECT_RATIO);
 const FAVICON_LOAD_TIMEOUT_MS = 4000;
 
 /**
@@ -28,7 +40,7 @@ export function createPanelMesh(
   const { width, height } = sizeOverride ?? panel.size ?? sizeFromAmount(panel.amount);
 
   const geometry = new THREE.PlaneGeometry(width, height);
-  const canvas = drawPanelCanvas({ color: panel.color, label: panel.label });
+  const canvas = drawPanelCanvas({ color: panel.color, title: panel.label });
   const material = new THREE.MeshBasicMaterial({ map: toTexture(canvas), side: THREE.DoubleSide });
 
   const mesh = new THREE.Mesh(geometry, material);
@@ -62,7 +74,7 @@ export function createRealPanelMesh(
   const label = panel.title || hostnameOf(panel.url) || "?";
   const color = panel.dominantColor || "#3a3d47";
 
-  const canvas = drawPanelCanvas({ color, label });
+  const canvas = drawPanelCanvas({ color, title: label, description: panel.description });
   const material = new THREE.MeshBasicMaterial({ map: toTexture(canvas), side: THREE.DoubleSide });
 
   const mesh = new THREE.Mesh(geometry, material);
@@ -78,7 +90,7 @@ export function createRealPanelMesh(
     // reliable to check here to skip it early.
     loadImage(panel.faviconUrl, FAVICON_LOAD_TIMEOUT_MS).then((image) => {
       if (!image || !material.map) return;
-      drawFaviconOnto(canvas, image);
+      paintPanel(canvas, { color, title: label, description: panel.description, favicon: image });
       material.map.needsUpdate = true;
     });
   }
@@ -94,51 +106,140 @@ function hostnameOf(url: string): string | null {
   }
 }
 
-function drawPanelCanvas(params: { color: string; label: string }): HTMLCanvasElement {
+interface PanelFace {
+  color: string;
+  title: string;
+  description?: string | null;
+  favicon?: CanvasImageSource | null;
+}
+
+function drawPanelCanvas(face: PanelFace): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
-  canvas.width = TEXTURE_SIZE;
-  canvas.height = TEXTURE_SIZE;
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return canvas;
-
-  ctx.fillStyle = params.color;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
-  ctx.fillRect(0, canvas.height - 56, canvas.width, 56);
-
-  ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  // Shrink-to-fit: start large and step down until the label fits, so
-  // both short codes ("AG") and longer titles/hostnames fit cleanly.
-  let fontSize = 96;
-  do {
-    ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
-    fontSize -= 4;
-  } while (ctx.measureText(params.label).width > canvas.width * 0.85 && fontSize > 16);
-
-  ctx.fillText(params.label, canvas.width / 2, canvas.height / 2 - 16);
-
+  canvas.width = TEXTURE_WIDTH;
+  canvas.height = TEXTURE_HEIGHT;
+  paintPanel(canvas, face);
   return canvas;
 }
 
-function drawFaviconOnto(canvas: HTMLCanvasElement, image: CanvasImageSource): void {
+/**
+ * Paints the whole face from scratch every time, so the favicon arriving
+ * late is a repaint rather than a patch drawn over the previous state —
+ * the old version dimmed the background and stamped the icon on top,
+ * which could only be done once and left the panel darker for it.
+ */
+function paintPanel(canvas: HTMLCanvasElement, face: PanelFace): void {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  // Dim the existing background slightly so the icon reads clearly on
-  // top of it, then draw the icon centered in the upper portion (the
-  // label band at the bottom stays untouched).
-  ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
-  ctx.fillRect(0, 0, canvas.width, canvas.height - 56);
+  const w = canvas.width;
+  const h = canvas.height;
 
-  const iconSize = 112;
-  const x = (canvas.width - iconSize) / 2;
-  const y = (canvas.height - 56 - iconSize) / 2;
-  ctx.drawImage(image, x, y, iconSize, iconSize);
+  ctx.fillStyle = face.color;
+  ctx.fillRect(0, 0, w, h);
+
+  // A description needs a band deep enough to sit in; a bare code ("AG")
+  // just needs a footer so the panel doesn't read as a plain colour chip.
+  const bandTop = face.description ? h * 0.56 : h * 0.8;
+  ctx.fillStyle = "rgba(0, 0, 0, 0.24)";
+  ctx.fillRect(0, bandTop, w, h - bandTop);
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  let titleY = bandTop * 0.5;
+  if (face.favicon) {
+    const size = Math.round(h * 0.3);
+    ctx.drawImage(face.favicon, (w - size) / 2, bandTop * 0.5 - size * 0.92, size, size);
+    titleY = bandTop * 0.5 + size * 0.5;
+  }
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = fitFont(ctx, face.title, w * 0.88, Math.round(h * 0.32));
+  ctx.fillText(face.title, w / 2, titleY);
+
+  if (face.description) {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    const size = Math.round(h * 0.1);
+    ctx.font = `${size}px system-ui, sans-serif`;
+    const lines = wrapLines(ctx, face.description, w * 0.9, 2);
+    const bandHeight = h - bandTop;
+    lines.forEach((line, i) => {
+      ctx.fillText(line, w / 2, bandTop + bandHeight * (lines.length === 1 ? 0.5 : 0.32 + i * 0.38));
+    });
+  }
+}
+
+/** Largest font size at or below `startSize` that fits `maxWidth`. */
+function fitFont(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  startSize: number,
+): string {
+  let size = startSize;
+  let font = `bold ${size}px system-ui, sans-serif`;
+  ctx.font = font;
+  while (ctx.measureText(text).width > maxWidth && size > 12) {
+    size -= 2;
+    font = `bold ${size}px system-ui, sans-serif`;
+    ctx.font = font;
+  }
+  return font;
+}
+
+/**
+ * Word-wraps to at most `maxLines`, ellipsising whatever doesn't fit.
+ *
+ * Note the two separate ways text can overflow: a line can be too wide,
+ * *or* the description can simply run past `maxLines` while every line
+ * still fits its width. Only the first was handled at first, so a
+ * description cut short by the line limit ended mid-sentence with no
+ * ellipsis at all — spotted by rendering a real one, not by reading the
+ * code.
+ */
+function wrapLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number,
+): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  let dropped = false;
+
+  for (let i = 0; i < words.length; i++) {
+    const candidate = line ? `${line} ${words[i]}` : words[i];
+    // A single word wider than the line still goes on it, then gets
+    // ellipsised below — better than an empty line and a stuck loop.
+    if (!line || ctx.measureText(candidate).width <= maxWidth) {
+      line = candidate;
+      continue;
+    }
+    if (lines.length + 1 === maxLines) {
+      dropped = true;
+      break;
+    }
+    lines.push(line);
+    line = words[i];
+  }
+  if (line) lines.push(line);
+  if (lines.length === 0) return lines;
+
+  const lastIndex = lines.length - 1;
+  if (dropped || ctx.measureText(lines[lastIndex]).width > maxWidth) {
+    lines[lastIndex] = ellipsise(ctx, lines[lastIndex], maxWidth);
+  }
+  return lines;
+}
+
+/** Trims until the text plus its ellipsis fits. */
+function ellipsise(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  let trimmed = text;
+  while (trimmed.length > 1 && ctx.measureText(`${trimmed}…`).width > maxWidth) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return `${trimmed.trimEnd()}…`;
 }
 
 function toTexture(canvas: HTMLCanvasElement): THREE.CanvasTexture {

@@ -7,7 +7,14 @@ export interface CameraControllerOptions {
   /** Hard floor under the aspect-driven bound in computeAspectMinZoom(). */
   absoluteMinZoom: number;
   maxZoom: number;
-  initialZoom: number;
+  /**
+   * World half-width (x) the *landing* view frames, measured at
+   * `overviewContentZ` like `overviewHalfWidth` is. Derived rather than
+   * a fixed starting zoom, so arriving on the site shows the same whole
+   * scene on a laptop as on an ultrawide instead of cropping the sides
+   * off one of them.
+   */
+  landingHalfWidth: number;
   /** Damping factor applied per-frame at 60fps; frame-rate independent. */
   damping: number;
   zoomSpeed: number;
@@ -90,11 +97,16 @@ export class CameraController {
     this.zoomSpeed = options.zoomSpeed;
     this.overviewHalfWidth = options.overviewHalfWidth;
     this.panBounds = options.panBounds;
-    this.zoom = options.initialZoom;
-    this.targetZoom = options.initialZoom;
     this.effectiveMinZoom = this.minZoomDesktop;
-
     this.updateEffectiveMinZoom();
+
+    this.zoom = THREE.MathUtils.clamp(
+      this.fitZoomFor(options.landingHalfWidth),
+      this.effectiveMinZoom,
+      this.maxZoom,
+    );
+    this.targetZoom = this.zoom;
+
     this.applyZoom();
     this.applyPan();
   }
@@ -269,13 +281,23 @@ export class CameraController {
    * doc comment) since this is specifically about content that isn't
    * sitting at the lookAt plane.
    */
-  private computeAspectMinZoom(): number {
+  /**
+   * The zoom at which `halfWidth` world units either side of centre
+   * exactly fill the frame at `overviewContentZ`'s depth, on the current
+   * aspect ratio. Both the zoom-out floor and the landing view are
+   * solved with this, so they can't drift apart.
+   */
+  private fitZoomFor(halfWidth: number): number {
     const aspect = this.camera.aspect;
     if (!Number.isFinite(aspect) || aspect <= 0) return this.minZoomDesktop;
 
-    const halfHeightNeeded = this.overviewHalfWidth / aspect;
+    const halfHeightNeeded = halfWidth / aspect;
     const computed = (this.overviewDistance * Math.tan(this.baseFovRad / 2)) / halfHeightNeeded;
     return Number.isFinite(computed) && computed > 0 ? computed : this.minZoomDesktop;
+  }
+
+  private computeAspectMinZoom(): number {
+    return this.fitZoomFor(this.overviewHalfWidth);
   }
 
   private updateEffectiveMinZoom() {

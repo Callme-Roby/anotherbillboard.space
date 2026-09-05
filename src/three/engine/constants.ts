@@ -44,7 +44,7 @@ export const CAMERA_FIXED_DISTANCE = 30;
 // (same vertical FOV but a smaller aspect ratio means a narrower
 // horizontal frustum at any given zoom, which otherwise crops the sides
 // on mobile — reported directly against the running site).
-export const CAMERA_MIN_ZOOM = 0.6;
+export const CAMERA_MIN_ZOOM = 0.55;
 // Absolute floor under the aspect-driven bound above, so a pathologically
 // narrow viewport can't compute a near-zero (or negative-frustum) zoom.
 // Low on purpose: CAMERA_OVERVIEW_HALF_WIDTH evaluated at
@@ -53,7 +53,13 @@ export const CAMERA_MIN_ZOOM = 0.6;
 // floor exists only for genuinely degenerate viewports, not normal ones.
 export const CAMERA_ABSOLUTE_MIN_ZOOM = 0.05;
 export const CAMERA_MAX_ZOOM = 2.5;
-export const CAMERA_INITIAL_ZOOM = 1;
+// World half-width the landing view frames, solved at
+// CAMERA_OVERVIEW_CONTENT_Z for whatever aspect ratio the window has
+// (see CameraController.fitZoomFor) instead of a fixed starting zoom.
+// Sized to include the signature panel off to the left — arriving on the
+// site should show the whole place, signature included, not a crop of
+// the middle that hides it until you think to pan.
+export const CAMERA_LANDING_HALF_WIDTH = 13.5;
 /** Higher = snappier damping toward the scroll/drag target (0-1 per frame @60fps). */
 export const CAMERA_DAMPING = 0.08;
 /** Multiplicative zoom step per wheel deltaY unit (exponential, not linear — see CameraController). */
@@ -63,7 +69,7 @@ export const CAMERA_ZOOM_SPEED = 0.0015;
 // cluster + ground panel row + the off-center signature panel, see
 // SIGNATURE_PANEL_X/Z below), not just whatever CAMERA_MIN_ZOOM happens
 // to show on a wide desktop aspect ratio. Drives computeAspectMinZoom().
-export const CAMERA_OVERVIEW_HALF_WIDTH = 18;
+export const CAMERA_OVERVIEW_HALF_WIDTH = 16;
 // The depth (z) that CAMERA_OVERVIEW_HALF_WIDTH is solved at — must be
 // the closest-to-camera depth among the "must stay visible" content
 // (here, the signature panel's own z; the ground panel row sits at a
@@ -85,7 +91,10 @@ export const CAMERA_PAN_BOUNDS = { x: 16, y: 7 };
 // Shared with SceneManager (where it's placed) and CAMERA_OVERVIEW_* above
 // (which needs its depth to size the mobile zoom-out floor correctly) so
 // the two can't silently drift apart.
-export const SIGNATURE_PANEL_X = -15;
+// Pulled in from -15: at that distance the signature only ever appeared
+// at the very edge of the widest zoom-out, so framing the landing view
+// around it would have meant a view too wide for everything else.
+export const SIGNATURE_PANEL_X = -11.5;
 export const SIGNATURE_PANEL_Z = 8;
 
 // --- Post-processing ----------------------------------------------------

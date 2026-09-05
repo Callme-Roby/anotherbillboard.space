@@ -78,15 +78,23 @@ export function placeCharacter(seed: string, panelWidth: number): CharacterPlace
 export function pushCharacter(
   positions: number[],
   colors: number[],
+  /**
+   * Turn pivot per vertex — every one of a figure's gets its feet, which
+   * is what lets the whole crowd turn toward the pointer from a single
+   * shared uniform (see engine/characterGaze.ts).
+   */
+  pivots: number[],
   placement: CharacterPlacement,
   ink: THREE.Color,
   accent: THREE.Color,
 ): void {
   const { x, z, height: h } = placement;
+  const leanScale = 1 / h;
 
   const segment = (ax: number, ay: number, bx: number, by: number, color: THREE.Color) => {
     positions.push(x + ax, ay, z, x + bx, by, z);
     colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
+    pivots.push(x, z, leanScale, x, z, leanScale);
   };
 
   const headHalf = 0.12 * h;
