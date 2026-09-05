@@ -8,7 +8,7 @@ import { type BuildingDimensions, createBuildingMesh } from "./createBuilding";
  * texture *inside* a building, never compete with the black line that
  * defines its shape against the off-white background.
  */
-const DETAIL_COLOR = 0x55504a;
+const DETAIL_COLOR = 0x54545a;
 /** Roof spots / antenna beacons — the only warm accent on the structures. */
 const LIGHT_COLOR = 0xf2a541;
 

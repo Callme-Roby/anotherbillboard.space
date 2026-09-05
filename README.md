@@ -158,14 +158,19 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     dans le vide. Amorti différemment du zoom : le glisser suit le
     pointeur au pixel près (`CameraController.applyDragDelta`) plutôt que
     d'amortir en douceur, pour rester "collé" au doigt/à la souris.
-- Fond de scène blanc cassé (`BACKGROUND_COLOR`, `#f3efe6`) — sol et ciel
-  compris (`createGround.ts`, même couleur exactement, pas juste
-  "assortie" à la main) : ils se lisent comme une seule surface continue,
-  la grille du sol (recolorée sombre pour rester lisible sur fond clair —
-  l'inverse de la version fond-sombre initiale) et les contours noirs de
-  chaque forme portent maintenant toute la structure visuelle. Bâtiments/
-  panneaux eux-mêmes volontairement inchangés (hors du périmètre demandé
-  jusqu'ici).
+- Fond de scène blanc très légèrement gris (`BACKGROUND_COLOR`,
+  `#f4f4f5`) — sol et ciel compris (`createGround.ts`, la couleur
+  *exacte*, pas une teinte "assortie" à la main) : ils se lisent comme
+  une seule surface continue, et ce sont la grille du sol et les contours
+  noirs de chaque forme qui portent toute la structure visuelle.
+  Volontairement neutre : le "blanc cassé" chaud qu'il remplace tirait au
+  beige. Trois endroits tiennent cette valeur et doivent rester
+  synchronisés — `BACKGROUND_COLOR`, `--background` dans `globals.css` et
+  `themeColor` dans `layout.tsx` — plus le bezel hors-écran de la passe
+  CRT, qui la lit depuis la même constante (donc suit tout seul, y
+  compris le masque de contenu du shader). Les teintes qui n'existaient
+  que pour s'asseoir sur l'ancien fond chaud ont été neutralisées avec
+  lui : grille du sol et détail de façade des tours.
 - Panneaux au sol montés sur une vraie structure de panneau publicitaire
   (`createGroundBillboard.ts`) plutôt qu'un plan posé à même le sol :
   deux poteaux contreventés en croix avec leurs semelles, un cadre/bezel

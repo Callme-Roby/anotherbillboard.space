@@ -22,7 +22,7 @@ export const viewport: Viewport = {
   // inset-*) reports real values instead of always 0 — used to keep the
   // fixed HUD (legend, minimap, purchase button) clear of those areas.
   viewportFit: "cover",
-  themeColor: "#f3efe6",
+  themeColor: "#f4f4f5",
   colorScheme: "light",
 };
 

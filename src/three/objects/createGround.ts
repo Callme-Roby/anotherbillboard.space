@@ -7,7 +7,7 @@ import { BACKGROUND_COLOR, GROUND_SIZE } from "../engine/constants";
  * — no texturing, consistent with the "simple geometry, no lighting"
  * constraint that applies to the rest of the placeholder scenery.
  *
- * Same off-white as BACKGROUND_COLOR, so ground and sky read as one
+ * Exactly BACKGROUND_COLOR, so ground and sky read as one
  * continuous page rather than two different surfaces — structure comes
  * from the grid and from every other shape's black outline, not from a
  * ground/sky color split.
@@ -30,7 +30,7 @@ export function createGround(): THREE.Group {
   // contrast against the plane to read at all. Dark on the light ground
   // (inverted from the dark-ground version this replaces — see git
   // history), matching every other shape's black outline.
-  const grid = new THREE.GridHelper(GROUND_SIZE, GROUND_SIZE / 2, 0x1a1815, 0x8a8378);
+  const grid = new THREE.GridHelper(GROUND_SIZE, GROUND_SIZE / 2, 0x1a1a1c, 0x8a8a8f);
   group.add(grid);
 
   return group;

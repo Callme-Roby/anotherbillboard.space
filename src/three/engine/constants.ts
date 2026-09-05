@@ -1,7 +1,16 @@
 import * as THREE from "three";
 
-/** Scene background — a warm off-white ("blanc cassé"). */
-export const BACKGROUND_COLOR = 0xf3efe6;
+/**
+ * Scene background — a white leaning very slightly grey. Deliberately
+ * neutral rather than the warm "blanc cassé" it replaces, which read as
+ * beige. Must stay in sync with `--background` in app/globals.css and
+ * `themeColor` in app/layout.tsx: the page behind the canvas, the ground
+ * plane, the sky and the CRT pass's out-of-screen bezel are all this
+ * exact value, which is what lets them read as one continuous surface
+ * (and what the shader's content mask compares against — see
+ * crtShader.ts).
+ */
+export const BACKGROUND_COLOR = 0xf4f4f5;
 
 // --- Camera -----------------------------------------------------------
 // Perspective, but zoomed like a real camera lens rather than dollied:
