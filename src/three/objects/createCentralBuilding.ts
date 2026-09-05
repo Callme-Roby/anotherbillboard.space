@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 import { ANNOUNCEMENT_PLACEHOLDERS, RANK_SLOT_PLACEHOLDERS } from "../placeholders/mockPanels";
 import { createBuildingMesh } from "./createBuilding";
-import { createScreenRig, SCREEN_STANDOFF, type ScreenRigSpec } from "./createScreenRig";
+import { createScreenRig, FRAME_MARGIN, SCREEN_STANDOFF, type ScreenRigSpec } from "./createScreenRig";
 import { createSkyscraper, type SkyscraperSpec } from "./createSkyscraper";
 
 interface TowerScreen {
@@ -271,3 +271,42 @@ function createRotatingSummit(
     },
   };
 }
+
+/** A spot a bird can stand on: the top surface of something in the skyline. */
+export interface PerchSpot {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
+ * Everywhere a bird can land, derived from SKYLINE rather than listed by
+ * hand — move a tower or resize a screen and its perch follows, instead
+ * of quietly leaving birds standing in mid-air.
+ *
+ * Roofs (the front edge of each tower's top tier) plus the top edge of
+ * each flat-mounted screen — the crow-on-a-billboard silhouette. The
+ * `crown` rig is skipped: it's tilted back (see createScreenRig), so its
+ * top edge isn't level and a bird would sit visibly askew on it.
+ */
+export const PERCHES: PerchSpot[] = SKYLINE.flatMap((tower) => {
+  const apexY = tower.building.tiers.reduce((sum, tier) => sum + tier.height, 0);
+  const topTier = tower.building.tiers[tower.building.tiers.length - 1];
+  const spots: PerchSpot[] = [
+    // Just inside the roof's front edge, so a perched bird reads against
+    // the sky rather than half-buried in the roof behind it, and off the
+    // centre line so the flock doesn't line up through the antenna mast.
+    { x: tower.x + topTier.width * 0.22, y: apexY, z: tower.z + topTier.depth / 2 - 0.12 },
+  ];
+
+  if (tower.screen.rig.kind !== "crown") {
+    const mountTier = tower.building.tiers[tower.screen.tier];
+    spots.push({
+      x: tower.x,
+      y: tower.screen.y + tower.screen.rig.height / 2 + FRAME_MARGIN,
+      z: tower.z + mountTier.depth / 2 + SCREEN_STANDOFF - (tower.screen.inset ?? 0),
+    });
+  }
+
+  return spots;
+});

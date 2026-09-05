@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
-import { type Bird, createBird } from "../objects/createBird";
+import { type Bird, BIRD_WINGSPAN, createBird } from "../objects/createBird";
+import { PERCHES, type PerchSpot } from "../objects/createCentralBuilding";
 
 /** Hard ceiling on a flock, per the design: never a swarm. */
 const MAX_FLOCK_SIZE = 3;
@@ -38,22 +39,17 @@ const FORMATIONS: { x: number; y: number; z: number }[][] = [
 ];
 
 // Deliberately different lengths from FORMATIONS (4) and from each
-// other, so cycling all four in lockstep still takes 4·3·5 = 60 flights
-// to repeat a combination — varied without needing randomness, which
-// also keeps a screenshot of flight N reproducible.
-// Around and just over the roofline (towers reach 3.8-8.2, the rotating
-// summit 10.6). Raised from a first pass at 5.4-8.1, which flew the
-// flock straight *through* the skyline: at mid-building height the birds
-// spend most of a crossing behind a tower, and a flock you only glimpse
-// between buildings isn't one — seen on screen, not predicted.
+// other, so cycling all of them in lockstep still takes a long time to
+// repeat a combination — varied without needing randomness, which also
+// keeps a screenshot of flight N reproducible.
 const ALTITUDES = [7.4, 8.9, 6.5];
 const DEPTHS = [-5.5, 1.2, -2.4, -0.6, 3.0];
 const SPEEDS = [4.6, 5.5, 5.0];
+/** Quiet sky between flights, in seconds. Cycled like everything else. */
+const FLIGHT_GAPS = [13, 19, 16];
 
 /** Half the crossing distance — well outside the widest zoom-out view. */
 const FLIGHT_HALF_SPAN = 24;
-/** Quiet sky between flights, in seconds. */
-const FLIGHT_GAP_S = 6;
 
 const BOB_AMPLITUDE = 0.22;
 const BOB_FREQUENCY = 0.55;
@@ -71,6 +67,31 @@ const BANK_AMPLITUDE = 0.16;
  */
 const YAW_TOWARD_HEADING = 0.5;
 
+// --- Landing flights ------------------------------------------------------
+/** One flight in this many comes in to land instead of passing through. */
+const PERCH_EVERY = 3;
+const APPROACH_S = 3.6;
+/** How long they stay put once down. */
+const PERCH_S = 5;
+const DEPARTURE_S = 3.2;
+/** Gap between birds sharing a perch, so they line up along its edge. */
+const PERCH_SPACING = 0.4;
+/**
+ * Lifts a bird's body off the surface its feet are standing on. Raised
+ * from a first pass at 0.16 spans: perched that low, the birds' own dark
+ * lines sat within a few pixels of the roof's black outline and merged
+ * straight into it — they were landing correctly and reading as nothing.
+ */
+const PERCH_LIFT = BIRD_WINGSPAN * 0.3;
+/** Height of the swoop over the straight line in and out of a perch. */
+const APPROACH_ARC = 0.9;
+/** Wings held slightly drooped when settled, rather than stiffly level. */
+const PERCHED_WING_ANGLE = -0.13;
+/** How far the wings fold in once down — see Bird.setWingSpread. */
+const PERCHED_WING_SPREAD = 0.4;
+/** Nose-up posture when settled: perched birds stand, they don't glide. */
+const PERCHED_PITCH = -0.4;
+
 /** Don't re-announce the same flock more than this often, in seconds. */
 const CALL_COOLDOWN_S = 2.5;
 /**
@@ -78,6 +99,8 @@ const CALL_COOLDOWN_S = 2.5;
  * once it is properly in view rather than while still clipping the edge.
  */
 const IN_VIEW_BOUND = 0.94;
+
+type Phase = "waiting" | "crossing" | "approach" | "perched" | "departure";
 
 export interface BirdsOptions {
   /**
@@ -89,9 +112,10 @@ export interface BirdsOptions {
 }
 
 /**
- * The flock overhead: at most three black birds crossing at building
- * height, flapping and banking, in a formation that changes from one
- * flight to the next.
+ * The flock overhead: at most three black birds at building height, in a
+ * formation that changes from one flight to the next. Most flights cross
+ * and are gone; every third comes in to land on the skyline, sits for a
+ * few seconds, and leaves again.
  *
  * Birds are pooled and parented straight to this group (no intermediate
  * flock node), so each one's local position *is* its world position —
@@ -105,18 +129,26 @@ export class Birds {
   private readonly birds: Bird[] = [];
   private readonly onEnterView?: () => void;
   private readonly projected = new THREE.Vector3();
+  private readonly from = new THREE.Vector3();
+  private readonly to = new THREE.Vector3();
 
   private flightIndex = 0;
-  /** Distance covered along the current crossing. */
-  private travelled = 0;
-  private waitFor = FLIGHT_GAP_S * 0.4;
+  private phase: Phase = "waiting";
+  /** Seconds spent in the current phase. */
+  private phaseTime = 0;
   private elapsed = 0;
+
+  /** Distance covered along a crossing. */
+  private travelled = 0;
 
   private direction: 1 | -1 = 1;
   private altitude = ALTITUDES[0];
   private depth = DEPTHS[0];
   private speed = SPEEDS[0];
+  private gap = FLIGHT_GAPS[0];
   private formation = FORMATIONS[0];
+  private activeCount = 0;
+  private perch: PerchSpot = PERCHES[0];
 
   private wasInView = false;
   private lastCallAt = Number.NEGATIVE_INFINITY;
@@ -134,22 +166,80 @@ export class Birds {
       this.group.add(bird.group);
     }
 
-    // No startFlight() here: the birds stay hidden until the opening
-    // wait elapses and update() starts the first crossing. Starting one
-    // now would park the whole flock, visible, at the world origin —
-    // inside the buildings — until the first frame moved it.
+    // Opens on a short wait rather than a flight: starting one here would
+    // park the whole flock, visible, at the world origin — inside the
+    // buildings — until the first frame moved it.
+    this.gap = FLIGHT_GAPS[0] * 0.25;
   }
 
   /** Call once per frame, after the camera has been updated. */
   update(delta: number, camera: THREE.Camera): void {
     this.elapsed += delta;
+    this.phaseTime += delta;
 
-    if (this.waitFor > 0) {
-      this.waitFor -= delta;
-      if (this.waitFor > 0) return;
-      this.startFlight();
+    switch (this.phase) {
+      case "waiting":
+        if (this.phaseTime >= this.gap) this.startFlight();
+        return;
+      case "crossing":
+        this.updateCrossing(delta);
+        break;
+      case "approach":
+        this.updateApproach();
+        break;
+      case "perched":
+        this.updatePerched();
+        break;
+      case "departure":
+        this.updateDeparture();
+        break;
     }
 
+    this.checkView(camera);
+  }
+
+  dispose(): void {
+    this.birds.length = 0;
+  }
+
+  // --- Flight lifecycle ---------------------------------------------------
+
+  private startFlight(): void {
+    const n = this.flightIndex;
+    this.formation = FORMATIONS[n % FORMATIONS.length];
+    this.altitude = ALTITUDES[n % ALTITUDES.length];
+    this.depth = DEPTHS[n % DEPTHS.length];
+    this.speed = SPEEDS[n % SPEEDS.length];
+    this.gap = FLIGHT_GAPS[n % FLIGHT_GAPS.length];
+    this.direction = n % 2 === 0 ? 1 : -1;
+    this.perch = PERCHES[n % PERCHES.length];
+    this.activeCount = this.formation.length;
+
+    this.travelled = 0;
+    this.wasInView = false;
+    this.birds.forEach((bird, i) => {
+      bird.group.visible = i < this.activeCount;
+    });
+
+    this.enter(n % PERCH_EVERY === 0 ? "approach" : "crossing");
+  }
+
+  private endFlight(): void {
+    this.flightIndex++;
+    this.wasInView = false;
+    for (const bird of this.birds) bird.group.visible = false;
+    this.enter("waiting");
+  }
+
+  private enter(phase: Phase): void {
+    this.phase = phase;
+    this.phaseTime = 0;
+  }
+
+  // --- Phases -------------------------------------------------------------
+
+  /** A flight that simply passes through, edge to edge. */
+  private updateCrossing(delta: number): void {
     this.travelled += this.speed * delta;
     if (this.travelled > FLIGHT_HALF_SPAN * 2) {
       this.endFlight();
@@ -171,41 +261,108 @@ export class Birds {
       );
       bird.group.rotation.y = this.direction * YAW_TOWARD_HEADING;
       bird.group.rotation.x = -climb * 0.5;
-      // Each bird on its own phase, so the flock never beats as one
-      // block — the single cheapest thing that stops three copies of the
-      // same model reading as three copies of the same model.
-      const phase = this.elapsed * FLAP_HZ + i * 0.37;
-      bird.group.rotation.z = Math.sin(phase * 0.5) * BANK_AMPLITUDE;
-      bird.flap(phase);
-    });
-
-    this.checkView(camera);
-  }
-
-  dispose(): void {
-    this.birds.length = 0;
-  }
-
-  private startFlight(): void {
-    const n = this.flightIndex;
-    this.formation = FORMATIONS[n % FORMATIONS.length];
-    this.altitude = ALTITUDES[n % ALTITUDES.length];
-    this.depth = DEPTHS[n % DEPTHS.length];
-    this.speed = SPEEDS[n % SPEEDS.length];
-    this.direction = n % 2 === 0 ? 1 : -1;
-
-    this.travelled = 0;
-    this.wasInView = false;
-    this.birds.forEach((bird, i) => {
-      bird.group.visible = i < this.formation.length;
+      this.animateWings(bird, i, FLAP_HZ, BANK_AMPLITUDE);
     });
   }
 
-  private endFlight(): void {
-    this.flightIndex++;
-    this.waitFor = FLIGHT_GAP_S;
-    this.wasInView = false;
-    for (const bird of this.birds) bird.group.visible = false;
+  /** Coming in to land: swooping down onto the perch and slowing into it. */
+  private updateApproach(): void {
+    const t = Math.min(1, this.phaseTime / APPROACH_S);
+    // Eased out, so they arrive slowing down rather than arriving at
+    // cruising speed and stopping dead.
+    const eased = 1 - Math.pow(1 - t, 3);
+
+    this.formation.forEach((offset, i) => {
+      const bird = this.birds[i];
+      this.entryPoint(offset, this.from);
+      this.perchSlot(i, this.to);
+      bird.group.position.lerpVectors(this.from, this.to, eased);
+      // A swoop rather than a straight glide down the diagonal.
+      bird.group.position.y += Math.sin(t * Math.PI) * APPROACH_ARC;
+
+      bird.group.rotation.y = this.direction * YAW_TOWARD_HEADING * (1 - eased);
+      // Flaring: nose comes up as they settle onto the perch.
+      bird.group.rotation.x = 0.35 * eased;
+      // Beating harder the closer they get — braking, not cruising.
+      this.animateWings(bird, i, FLAP_HZ * (1 + eased * 0.6), BANK_AMPLITUDE * (1 - eased));
+    });
+
+    if (t >= 1) this.enter("perched");
+  }
+
+  /** Settled: wings folded, facing the camera, only a small idle sway. */
+  private updatePerched(): void {
+    this.formation.forEach((_, i) => {
+      const bird = this.birds[i];
+      this.perchSlot(i, this.to);
+      bird.group.position.copy(this.to);
+      // Each bird looks around on its own slow rhythm — the only thing
+      // separating "perched" from "three models parked on a roof".
+      const idle = Math.sin(this.elapsed * 0.9 + i * 1.7);
+      bird.group.rotation.y = idle * 0.35;
+      bird.group.rotation.x = PERCHED_PITCH;
+      bird.group.rotation.z = 0;
+      bird.setWingSpread(PERCHED_WING_SPREAD);
+      // Mostly still, with the occasional half-second wing shuffle.
+      bird.setWingAngle(PERCHED_WING_ANGLE + Math.max(0, idle - 0.93) * 1.4);
+    });
+
+    if (this.phaseTime >= PERCH_S) this.enter("departure");
+  }
+
+  /** Off again: pushing off the perch, climbing away and accelerating. */
+  private updateDeparture(): void {
+    const t = Math.min(1, this.phaseTime / DEPARTURE_S);
+    const eased = t * t * t;
+
+    this.formation.forEach((offset, i) => {
+      const bird = this.birds[i];
+      this.perchSlot(i, this.from);
+      this.exitPoint(offset, this.to);
+      bird.group.position.lerpVectors(this.from, this.to, eased);
+      bird.group.position.y += Math.sin(t * Math.PI) * APPROACH_ARC * 0.5;
+
+      bird.group.rotation.y = this.direction * YAW_TOWARD_HEADING * eased;
+      // Nose up on the climb out, levelling as they get going.
+      bird.group.rotation.x = -0.3 * (1 - eased);
+      this.animateWings(bird, i, FLAP_HZ * (1.7 - eased * 0.7), BANK_AMPLITUDE * eased);
+    });
+
+    if (t >= 1) this.endFlight();
+  }
+
+  // --- Helpers ------------------------------------------------------------
+
+  private animateWings(bird: Bird, index: number, flapHz: number, bank: number): void {
+    // Each bird on its own phase, so the flock never beats as one block —
+    // the single cheapest thing that stops three copies of the same model
+    // reading as three copies of the same model.
+    const phase = this.elapsed * flapHz + index * 0.37;
+    bird.group.rotation.z = Math.sin(phase * 0.5) * bank;
+    bird.setWingSpread(1);
+    bird.flap(phase);
+  }
+
+  /** Where bird `i` stands, spread along the perch's edge. */
+  private perchSlot(index: number, out: THREE.Vector3): void {
+    const spread = (index - (this.activeCount - 1) / 2) * PERCH_SPACING;
+    out.set(this.perch.x + spread, this.perch.y + PERCH_LIFT, this.perch.z);
+  }
+
+  private entryPoint(offset: { x: number; y: number; z: number }, out: THREE.Vector3): void {
+    out.set(
+      -this.direction * (FLIGHT_HALF_SPAN * 0.6) + offset.x * this.direction,
+      this.altitude + offset.y,
+      this.perch.z + offset.z - 2.5,
+    );
+  }
+
+  private exitPoint(offset: { x: number; y: number; z: number }, out: THREE.Vector3): void {
+    out.set(
+      this.direction * (FLIGHT_HALF_SPAN * 0.7) + offset.x * this.direction,
+      this.altitude + 1.4 + offset.y,
+      this.perch.z + offset.z - 2,
+    );
   }
 
   /**
@@ -215,7 +372,7 @@ export class Birds {
    */
   private checkView(camera: THREE.Camera): void {
     let inView = false;
-    for (let i = 0; i < this.formation.length; i++) {
+    for (let i = 0; i < this.activeCount; i++) {
       this.projected.copy(this.birds[i].group.position).project(camera);
       if (
         Math.abs(this.projected.x) <= IN_VIEW_BOUND &&

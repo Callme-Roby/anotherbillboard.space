@@ -21,6 +21,15 @@ export interface Bird {
   group: THREE.Group;
   /** Sets the wings for a flap phase; `phase` is in turns, not radians. */
   flap: (phase: number) => void;
+  /** Holds the wings at a fixed angle — a perched bird isn't flapping. */
+  setWingAngle: (angle: number) => void;
+  /**
+   * Scales the wings in, 1 being fully spread. A perched bird folds them
+   * against its body; left at full spread it keeps the gliding
+   * silhouette and reads as hovering over its perch rather than sitting
+   * on it.
+   */
+  setWingSpread: (spread: number) => void;
 }
 
 /**
@@ -66,12 +75,20 @@ export function createBird(): Bird {
 
   group.add(rightWing, leftWing, body);
 
+  const setWingAngle = (angle: number) => {
+    rightWing.rotation.z = angle;
+    leftWing.rotation.z = -angle;
+  };
+
   return {
     group,
-    flap: (phase: number) => {
-      const angle = Math.sin(phase * Math.PI * 2) * FLAP_AMPLITUDE;
-      rightWing.rotation.z = angle;
-      leftWing.rotation.z = -angle;
+    setWingAngle,
+    // The left wing keeps its mirroring sign, so folding scales both
+    // toward the body rather than flipping one through it.
+    setWingSpread: (spread: number) => {
+      rightWing.scale.x = spread;
+      leftWing.scale.x = -spread;
     },
+    flap: (phase: number) => setWingAngle(Math.sin(phase * Math.PI * 2) * FLAP_AMPLITUDE),
   };
 }

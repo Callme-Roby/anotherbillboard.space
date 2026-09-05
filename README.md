@@ -317,10 +317,29 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
   légèrement inclinés et tanguant avec leur trajectoire.
   - **La formation change d'un vol à l'autre** — deux de front avec un
     troisième qui suit un peu en arrière et en dessous, un V, une paire
-    seule, une file décalée. Formation, altitude, profondeur, vitesse et
-    sens sont des cycles de longueurs différentes (4, 3, 5, 3, 2), donc
-    il faut 60 vols pour revoir la même combinaison : varié sans
-    aléatoire, et une capture du vol N reste reproductible.
+    seule, une file décalée. Formation, altitude, profondeur, vitesse,
+    sens, durée d'attente et perchoir sont des cycles de longueurs
+    différentes (4, 3, 5, 3, 2, 3, 9), donc il faut très longtemps pour
+    revoir la même combinaison : varié sans aléatoire, et une capture du
+    vol N reste reproductible.
+  - **Un vol sur trois vient se poser** au lieu de traverser : approche
+    en piqué qui décélère sur le perchoir (interpolation *ease-out*, nez
+    qui se relève, battements plus rapides à l'arrivée — on freine, on ne
+    croise pas), cinq secondes posés, puis décollage qui accélère et
+    grimpe (*ease-in*). Posés, les oiseaux replient les ailes
+    (`setWingSpread`), se redressent et regardent autour d'eux chacun sur
+    son rythme — sans quoi ce sont trois modèles garés sur un toit.
+  - Les perchoirs sont **dérivés de `SKYLINE`** et non listés à la main
+    (`PERCHES` dans `createCentralBuilding.ts`) : bord avant de chaque
+    toit et arête supérieure de chaque écran à plat — l'image du corbeau
+    sur le panneau. Déplacer une tour ou redimensionner un écran déplace
+    le perchoir avec, au lieu de laisser discrètement des oiseaux debout
+    dans le vide. Le support `crown` est exclu : il est incliné vers
+    l'arrière, un oiseau s'y tiendrait visiblement de travers.
+  - Réglage venu de l'écran, pas du calcul : posés trop bas, les oiseaux
+    se retrouvaient à quelques pixels du contour noir du toit et
+    fusionnaient avec — ils atterrissaient parfaitement et ne se lisaient
+    pas. Relevés, ailes repliées, et décalés de l'axe du mât d'antenne.
   - **"Cui-cui" quand un vol entre dans le cadre** (`birdCall.ts`) — y
     compris quand c'est un zoom qui l'y amène, puisque le test projette
     les oiseaux à travers la caméra du moment. Déclenché sur le *front*

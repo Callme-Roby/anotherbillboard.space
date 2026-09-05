@@ -9,7 +9,7 @@ const FRAME_COLOR = 0x0a0a0a;
 const TRIM_COLOR = 0xf2a541;
 
 /** How far the frame stands outside the picture it surrounds. */
-const FRAME_MARGIN = 0.06;
+export const FRAME_MARGIN = 0.06;
 /** How far a rig floats off the wall it's bolted to (its struts' length). */
 export const SCREEN_STANDOFF = 0.09;
 
