@@ -59,8 +59,11 @@ const SKYLINE: TowerSpec[] = [
     // Rank 4 — a low block wearing its wrap around the shaft's bottom
     // corner. Mounted on the shaft rather than the (visually more
     // interesting) street-level podium because the ground billboard row
-    // stands at z=9, in front of the whole cluster: anything below
-    // y ~= 2 here is simply occluded by it — checked on screen.
+    // stands at z=9, in front of the whole cluster, and occludes what
+    // is behind it — checked on screen. Kept here even after the ground
+    // panels were scaled down (their row now tops out around y=1.4):
+    // the wrap reads better against the shaft's windows than against a
+    // blank podium anyway.
     x: -6.2,
     z: 1.4,
     building: {

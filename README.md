@@ -99,8 +99,10 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     petits : décrocher un top 5 doit se voir de loin comme une vraie
     récompense, pas un détail qu'il faut chercher. Le rang 4 a dû être
     remonté du socle au fût : la rangée de panneaux au sol se tient à
-    z=9, devant tout le cluster, et masquait purement et simplement tout
-    ce qui est sous y≈2 — constaté à l'écran.
+    z=9, devant tout le cluster, et masquait ce qui était derrière elle —
+    constaté à l'écran. Conservé là même après la réduction de taille des
+    panneaux au sol (leur rangée ne dépasse plus ~y=1,4) : le wrap se lit
+    de toute façon mieux sur les fenêtres du fût que sur un socle nu.
   - **Sommet rotatif** au-dessus de la tour la plus haute : un mât porte
     4 écrans disposés en croix qui tournent lentement ensemble autour de
     son axe (`createRotatingSummit`, `SceneManager` fait avancer la
@@ -164,21 +166,43 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
   chaque forme portent maintenant toute la structure visuelle. Bâtiments/
   panneaux eux-mêmes volontairement inchangés (hors du périmètre demandé
   jusqu'ici).
-- Panneaux au sol montés sur un vrai petit modèle 3D (`createGroundBillboard.ts`)
-  plutôt qu'un plan posé à même le sol : deux pieds fins (même matériau
-  boîte + contours noirs que le reste de la scène) élevant le panneau,
-  comme un vrai panneau publicitaire. Premier passage volontairement
-  simple : les pieds sont une taille fixe pour tous les panneaux au sol
-  (signature "ROBY" comprise), indépendamment du montant/de la taille du
-  panneau — les faire varier avec le panneau est un prochain pas, pas
-  encore fait.
-- Taille des panneaux nettement réduite (courbe montant→taille dans
-  `lib/economy.ts` et `placeholders/sizing.ts`, panneaux de rang/décor
-  dans `mockPanels.ts`, pieds dans `createGroundBillboard.ts` — tout
-  redescendu ensemble) : ils cachaient les bâtiments et rivalisaient
-  visuellement avec eux, ce qui vidait de son sens la récompense
-  "position haute dans le classement = visible sur un bâtiment" — un
-  panneau au sol énorme rendait un petit écran de bâtiment moins
+- Panneaux au sol montés sur une vraie structure de panneau publicitaire
+  (`createGroundBillboard.ts`) plutôt qu'un plan posé à même le sol :
+  deux poteaux contreventés en croix avec leurs semelles, un cadre/bezel
+  autour de l'image, une passerelle d'entretien suspendue dessous et
+  trois rampes d'éclairage en col de cygne au-dessus.
+  - **C'est l'objet le plus soigné de la scène parce que c'est celui qui
+    apparaît le plus** — un par achat, des dizaines à l'écran à la fois.
+    D'où le choix inverse de celui des bâtiments : ici tous les panneaux
+    partagent **exactement la même** structure, seule la largeur suit le
+    panneau porté et la hauteur des poteaux est fixe. Une rangée de
+    panneaux à la même hauteur se lit comme une place ; à hauteurs
+    dépareillées, comme un accident.
+  - Toute la structure tient dans **un seul `LineSegments`**, la couleur
+    chaude des têtes de lampe étant portée par un attribut de couleur par
+    sommet plutôt que par un second matériau. C'est ce qui permet de la
+    détailler autant : 2 draw calls par panneau (structure + image) quelle
+    que soit la quantité de détail ajoutée, là où l'ancienne version à
+    deux poteaux-boîtes en coûtait déjà 5 pour bien moins. Les couleurs
+    sont poussées telles quelles depuis `THREE.Color`, dont les valeurs
+    sont déjà dans l'espace linéaire de travail du renderer (vérifié dans
+    le `ColorManagement` de three.js) — l'espace attendu pour un attribut
+    de couleur.
+  - Une tête de lampe dessinée seulement comme une avancée vers l'avant
+    est un segment pointé droit sur une caméra frontale : elle se projette
+    sur ~1 pixel et les lampes disparaissent. Constaté sur une capture
+    rapprochée, corrigé en dessinant la tête comme une barre *en travers*
+    de la vue.
+- Taille des panneaux au sol réduite une nouvelle fois (courbe
+  montant→taille dans `lib/economy.ts` et `placeholders/sizing.ts`,
+  panneau signature dans `mockPanels.ts`, hauteur des poteaux dans
+  `createGroundBillboard.ts` — tout redescendu ensemble) : le plus grand
+  panneau de la scène de démo passe sous le quart de la *plus petite*
+  tour et au dixième de la plus haute, soit à peu près le rapport réel
+  d'un panneau publicitaire à un immeuble. Ils cachaient les bâtiments et
+  rivalisaient visuellement avec eux, ce qui vidait de son sens la
+  récompense "position haute dans le classement = visible sur un
+  bâtiment" — un panneau au sol énorme rendait un écran de bâtiment moins
   intéressant, pas plus. Les bâtiments doivent rester l'élément qui
   domine visuellement, les panneaux au sol un détail qu'on découvre en
   zoomant.

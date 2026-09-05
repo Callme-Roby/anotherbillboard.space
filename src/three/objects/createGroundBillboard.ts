@@ -1,34 +1,62 @@
 import * as THREE from "three";
 
-import { createBuildingMesh } from "./createBuilding";
+/**
+ * A real roadside-billboard structure: two braced posts, a bezel around
+ * the picture, a maintenance catwalk under it and gooseneck lamps over
+ * it. Same black as every silhouette in the scene, with the same warm
+ * accent the towers use for their roof spots (createSkyscraper.ts).
+ */
+const STRUCTURE_COLOR = 0x0a0a0a;
+const LAMP_COLOR = 0xf2a541;
 
-// A first pass at a *real* billboard structure — two support legs plus
-// the panel, replacing a flat plane resting directly on the ground (see
-// git history). The legs are a uniform size regardless of the panel's
-// own size for now: varying the stand with the panel (a taller payment
-// getting a taller/sturdier-looking stand) is future work, not yet done.
-// Height scaled down alongside the panels themselves (see
-// placeholders/sizing.ts and lib/economy.ts) so the stand stays
-// proportionate to the now-smaller sign it holds, rather than towering
-// over it.
-const LEG_HEIGHT = 0.7;
-const LEG_THICKNESS = 0.08;
-// Each leg sits this far from center, as a fraction of the panel's own
-// half-width — inset from the panel's edges rather than flush with them,
-// like a real sign's support posts.
-const LEG_INSET_FRACTION = 0.65;
+// Fixed for *every* ground panel regardless of its own size. This is the
+// object that appears most on the site — one per purchase, dozens on
+// screen at once — so it's deliberately one consistent piece of street
+// furniture rather than a per-panel variation: a row of signs standing
+// at the same height reads as a plaza, a row at mismatched heights reads
+// as an accident. Only the width follows the panel it carries.
+const LEG_HEIGHT = 0.5;
+const POST_WIDTH = 0.045;
+/**
+ * Each post sits this far from center as a fraction of the panel's own
+ * half-width — inset from the edges rather than flush with them, like a
+ * real sign's supports.
+ */
+const LEG_INSET_FRACTION = 0.62;
+
+/** Bezel offset around the picture, and the catwalk's drop below it. */
+const FRAME_MARGIN = 0.035;
+const CATWALK_DROP = 0.07;
+
+const LAMP_COUNT = 3;
+const LAMP_ARM_HEIGHT = 0.1;
+/** How far each lamp head reaches out over the picture (toward +Z). */
+const LAMP_REACH = 0.09;
+/**
+ * Half-length of the lamp head itself, drawn as a bar *across* the view.
+ * A head drawn only as a forward reach is a segment pointing straight at
+ * a head-on camera, so it projects to nearly a single pixel and the
+ * lamps vanish — seen in a close-up before this was added.
+ */
+const LAMP_HEAD_HALF = 0.038;
 
 /**
- * Wraps an already-built flat panel mesh (see createPanel.ts) with a
- * simple two-post support structure standing it up off the ground,
- * rather than the panel resting flush on the ground itself. Same unlit-
- * box-plus-black-edges material as every other structure in the scene
- * (createBuildingMesh) — a real (if simple) 3D model, not a sprite.
+ * Wraps an already-built flat panel mesh (see createPanel.ts) in its
+ * support structure, standing it off the ground.
+ *
+ * The whole structure — posts, bracing, footings, bezel, catwalk and
+ * lamps — is a *single* `LineSegments`, with the lamp heads' warm color
+ * carried in a vertex-color attribute rather than a second material.
+ * That's what lets this object be the detailed one: it costs two draw
+ * calls (structure + picture) no matter how much detail is added to it,
+ * where the old two-posts-as-boxes version already cost five for far
+ * less. Vertex colors are pushed straight from `THREE.Color`, whose
+ * values are already in the renderer's linear working space (checked
+ * against three.js's ColorManagement) — the same space a color attribute
+ * is expected to be in.
  *
  * Returns a group whose origin is at ground level (y=0), ready to
- * position directly at a ground (x, 0, z) spot — replaces the previous
- * `mesh.position.y = height/2` (flush-on-ground) placement at each of
- * this function's call sites.
+ * position directly at a ground (x, 0, z) spot.
  */
 export function createGroundBillboard(
   panel: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>,
@@ -38,16 +66,84 @@ export function createGroundBillboard(
 
   const panelWidth = panel.geometry.parameters.width;
   const panelHeight = panel.geometry.parameters.height;
-  const legOffsetX = (panelWidth / 2) * LEG_INSET_FRACTION;
-
-  for (const side of [-1, 1]) {
-    const leg = createBuildingMesh({ width: LEG_THICKNESS, height: LEG_HEIGHT, depth: LEG_THICKNESS });
-    leg.position.set(side * legOffsetX, 0, 0);
-    group.add(leg);
-  }
 
   panel.position.y = LEG_HEIGHT + panelHeight / 2;
   group.add(panel);
+
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const structureColor = new THREE.Color(STRUCTURE_COLOR);
+  const lampColor = new THREE.Color(LAMP_COLOR);
+
+  const segment = (
+    ax: number, ay: number, az: number,
+    bx: number, by: number, bz: number,
+    color: THREE.Color = structureColor,
+  ) => {
+    positions.push(ax, ay, az, bx, by, bz);
+    colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
+  };
+
+  const halfWidth = panelWidth / 2;
+  const postX = halfWidth * LEG_INSET_FRACTION;
+  const panelBottom = LEG_HEIGHT;
+  const panelTop = LEG_HEIGHT + panelHeight;
+
+  for (const side of [-1, 1] as const) {
+    const center = side * postX;
+    const inner = center - POST_WIDTH / 2;
+    const outer = center + POST_WIDTH / 2;
+
+    // Post drawn as a narrow rectangle rather than one line, so it keeps
+    // a visible thickness at the scene's low internal render resolution.
+    segment(inner, 0, 0, inner, panelBottom, 0);
+    segment(outer, 0, 0, outer, panelBottom, 0);
+    segment(inner, panelBottom, 0, outer, panelBottom, 0);
+    // Footing pad, a touch above ground so it can't z-fight with it.
+    segment(center - POST_WIDTH * 1.9, 0.012, 0, center + POST_WIDTH * 1.9, 0.012, 0);
+  }
+
+  // Cross-bracing between the posts — the detail that most makes this
+  // read as a built structure rather than a sign on two sticks.
+  const braceLow = LEG_HEIGHT * 0.14;
+  const braceHigh = LEG_HEIGHT * 0.74;
+  segment(-postX, braceLow, 0, postX, braceHigh, 0);
+  segment(postX, braceLow, 0, -postX, braceHigh, 0);
+  segment(-postX, LEG_HEIGHT * 0.44, 0, postX, LEG_HEIGHT * 0.44, 0);
+
+  // Bezel around the picture.
+  const frameX = halfWidth + FRAME_MARGIN;
+  const frameBottom = panelBottom - FRAME_MARGIN;
+  const frameTop = panelTop + FRAME_MARGIN;
+  segment(-frameX, frameTop, 0, frameX, frameTop, 0);
+  segment(frameX, frameTop, 0, frameX, frameBottom, 0);
+  segment(frameX, frameBottom, 0, -frameX, frameBottom, 0);
+  segment(-frameX, frameBottom, 0, -frameX, frameTop, 0);
+
+  // Maintenance catwalk slung under the picture, on two brackets.
+  const catwalkY = frameBottom - CATWALK_DROP;
+  const catwalkX = frameX * 1.04;
+  segment(-catwalkX, catwalkY, 0, catwalkX, catwalkY, 0);
+  for (const side of [-1, 1] as const) {
+    segment(side * frameX * 0.72, frameBottom, 0, side * frameX * 0.72, catwalkY, 0);
+  }
+
+  // Gooseneck lamps along the top edge: an upright arm, a neck reaching
+  // out over the picture, and the head itself as a bar across the view
+  // (the part that carries the warm color).
+  for (let i = 0; i < LAMP_COUNT; i++) {
+    const x = -halfWidth + ((i + 0.5) / LAMP_COUNT) * panelWidth;
+    const armTop = frameTop + LAMP_ARM_HEIGHT;
+    const headY = armTop - LAMP_ARM_HEIGHT * 0.2;
+    segment(x, frameTop, 0, x, armTop, 0);
+    segment(x, armTop, 0, x, headY, LAMP_REACH);
+    segment(x - LAMP_HEAD_HALF, headY, LAMP_REACH, x + LAMP_HEAD_HALF, headY, LAMP_REACH, lampColor);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true })));
 
   return group;
 }

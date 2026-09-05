@@ -1,12 +1,13 @@
 const MIN_AMOUNT = 1000; // 10€ in cents — placeholder floor for this mock set
 const MAX_AMOUNT = 15000; // 150€ in cents — placeholder ceiling for this mock set
-// Halved from an earlier 1.1-2.6: reported as too large — panels were
-// competing with the buildings behind them rather than reading as small
-// billboards at their feet. Real scale reference: SKYLINE in
-// createCentralBuilding.ts runs 3.8-8.2 tall, so even the biggest mock
-// panel here (1.3) stays around a third of the *shortest* tower.
-const MIN_SIZE = 0.55;
-const MAX_SIZE = 1.3;
+// Reduced twice now (1.1-2.6, then 0.55-1.3, then this): panels kept
+// reading as too big for the skyline behind them. Real scale reference:
+// SKYLINE in createCentralBuilding.ts runs 3.8-8.2 tall, so the biggest
+// mock panel here (0.85) is now under a quarter of the *shortest* tower
+// and about a tenth of the tallest — roughly a real billboard against
+// real buildings, which is what was asked for.
+const MIN_SIZE = 0.38;
+const MAX_SIZE = 0.85;
 
 /**
  * Placeholder amount -> size mapping for the static mock scene. The real

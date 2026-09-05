@@ -20,15 +20,15 @@ export const CURRENCY = "eur";
 // Logarithmic, not linear or capped: growth keeps going for very large
 // payments (no artificial ceiling to hit), but with diminishing returns
 // so a single huge payment doesn't dwarf everything else on screen.
-// Halved from an earlier 1.0/0.55 — reported as too large, panels were
-// competing with (and partly hiding) the buildings behind them rather
-// than reading as small billboards at their feet. This also sharpens
-// the incentive the building screens are meant to carry: a top-ranked
-// spot on a building only means something if ground panels are modest
-// by comparison (see placeholders/sizing.ts for the mock-scene version
-// of this same curve, kept separately but scaled the same way).
-const SIZE_MIN = 0.5;
-const SIZE_SCALE = 0.28;
+// Reduced twice now (1.0/0.55, then 0.5/0.28, then this) — panels kept
+// reading as too large next to the buildings behind them rather than as
+// small billboards at their feet. This also sharpens the incentive the
+// building screens are meant to carry: a top-ranked spot on a building
+// only means something if ground panels are modest by comparison (see
+// placeholders/sizing.ts for the mock-scene version of this same curve,
+// kept separately but scaled the same way).
+const SIZE_MIN = 0.35;
+const SIZE_SCALE = 0.19;
 const SIZE_NORMALIZER_CENTS = 2000; // ~20€ reference point
 
 export function sizeFromAmountCents(amountCents: number): number {

@@ -82,5 +82,5 @@ export const SIGNATURE_PANEL: PlaceholderPanel = {
   // looking at the render, not assumed. A terse signature mark reads
   // better here anyway.
   label: "ROBY",
-  size: { width: 1.5, height: 0.7 },
+  size: { width: 1.1, height: 0.52 },
 };
