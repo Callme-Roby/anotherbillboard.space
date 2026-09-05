@@ -193,6 +193,37 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     sur ~1 pixel et les lampes disparaissent. Constaté sur une capture
     rapprochée, corrigé en dessinant la tête comme une barre *en travers*
     de la vue.
+- **1 panneau = 1 personnage** (`createCharacter.ts`) : chaque panneau
+  acheté pose une personne de plus sur la place, debout au pied de son
+  panneau — la foule *est* le compteur de ventes, lisible d'un coup d'œil
+  avant tout chiffre.
+  - La tête porte la couleur du panneau à qui la personne appartient, le
+    corps reste au noir structurel de la scène : à cette taille, la tête
+    est la seule partie assez grande pour porter une couleur, et c'est ce
+    qui rend le lien 1-pour-1 visible plutôt qu'une foule anonyme
+    saupoudrée autour. Elle est dessinée en lignes de remplissage
+    empilées et non en carré évidé — sinon la personne a l'air de porter
+    une boîte sur la tête (comparé à l'écran aux deux bouts de la plage
+    de zoom).
+  - Pose, carrure et côté du panneau sont tirés d'un hash de l'`id` du
+    panneau, pas d'un aléatoire : le refetch LOD réconcilie les panneaux
+    en continu (voir `LivePanels`), et une foule qui rebattrait ses poses
+    à chaque changement de zoom se lirait comme du scintillement, pas
+    comme une foule.
+  - Échelle humaine réelle : un panneau publicitaire sur ses poteaux fait
+    ~7 m, une personne environ le quart — c'est ce qui fait lire la scène
+    comme *des gens à côté de panneaux* et non comme des décorations
+    dessus.
+  - Écrit comme une fonction qui pousse ses segments dans les tampons de
+    son panneau (même motif que les grilles de fenêtres des tours) plutôt
+    qu'une factory rendant un objet : chaque personnage est fondu dans le
+    `LineSegments` de son panneau, donc **un personnage par panneau coûte
+    zéro draw call supplémentaire** sur l'objet le plus multiplié de la
+    scène. Contrepartie assumée et documentée : fondu ainsi, un
+    personnage ne peut pas être animé séparément — le jour où ils
+    marchent, ils ressortent dans leur propre géométrie (instanciée), ce
+    qui est de toute façon la direction déjà prévue pour les panneaux
+    eux-mêmes.
 - Taille des panneaux au sol réduite une nouvelle fois (courbe
   montant→taille dans `lib/economy.ts` et `placeholders/sizing.ts`,
   panneau signature dans `mockPanels.ts`, hauteur des poteaux dans
@@ -449,7 +480,7 @@ src/
 ├── three/
 │   ├── engine/      # SceneManager (orchestrateur), CameraController, PostProcessing,
 │   │                 # LivePanels (données réelles + temps réel), constants, sceneEvents
-│   ├── objects/      # Factories de mesh : volume, gratte-ciel (tiers/fenêtres/antennes), skyline, supports d'écran, panneau (mock + réel), sol
+│   ├── objects/      # Factories de mesh : volume, gratte-ciel (tiers/fenêtres/antennes), skyline, supports d'écran, panneau (mock + réel), personnage, sol
 │   ├── shaders/      # CRTShader
 │   └── placeholders/ # Données/mise en page de démonstration (utilisées tant qu'aucun panneau réel n'existe)
 └── lib/

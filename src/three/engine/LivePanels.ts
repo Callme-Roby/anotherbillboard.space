@@ -62,7 +62,7 @@ export class LivePanels {
     const positions = placeholderRowLayout(widths);
     MOCK_PANELS.forEach((panel, i) => {
       const mesh = createPanelMesh(panel);
-      const billboard = createGroundBillboard(mesh);
+      const billboard = createGroundBillboard(mesh, { seed: panel.id, accent: panel.color });
       const pos = positions[i];
       billboard.position.set(pos.x, 0, pos.z);
       this.group.add(billboard);
@@ -142,7 +142,7 @@ export class LivePanels {
     }
 
     const mesh = createRealPanelMesh(panel);
-    const billboard = createGroundBillboard(mesh);
+    const billboard = createGroundBillboard(mesh, { seed: panel.id, accent: panel.dominantColor });
     billboard.position.set(panel.positionX, 0, panel.positionY);
     this.group.add(billboard);
     this.billboardsById.set(panel.id, billboard);

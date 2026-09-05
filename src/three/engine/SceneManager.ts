@@ -110,7 +110,10 @@ export class SceneManager {
     // the mobile zoom-out floor correctly — keep them in sync. On its own
     // stand like every other ground panel (createGroundBillboard), not
     // resting flush on the ground.
-    const signature = createGroundBillboard(createPanelMesh(SIGNATURE_PANEL));
+    const signature = createGroundBillboard(createPanelMesh(SIGNATURE_PANEL), {
+      seed: SIGNATURE_PANEL.id,
+      accent: SIGNATURE_PANEL.color,
+    });
     signature.position.set(C.SIGNATURE_PANEL_X, 0, C.SIGNATURE_PANEL_Z);
     this.scene.add(signature);
   }

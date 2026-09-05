@@ -1,5 +1,7 @@
 import * as THREE from "three";
 
+import { placeCharacter, pushCharacter } from "./createCharacter";
+
 /**
  * A real roadside-billboard structure: two braced posts, a bezel around
  * the picture, a maintenance catwalk under it and gooseneck lamps over
@@ -40,9 +42,21 @@ const LAMP_REACH = 0.09;
  */
 const LAMP_HEAD_HALF = 0.038;
 
+export interface GroundBillboardOptions {
+  /**
+   * Stable per-panel key (its id) — decides the figure's pose, build and
+   * which side of the sign it stands on, so it stays put across the LOD
+   * refetch instead of reshuffling every time the camera zooms.
+   */
+  seed: string;
+  /** The panel's own colour, worn by its figure. Falls back to the ink. */
+  accent?: string | null;
+}
+
 /**
  * Wraps an already-built flat panel mesh (see createPanel.ts) in its
- * support structure, standing it off the ground.
+ * support structure, standing it off the ground, with the one figure
+ * that panel brings to the plaza (see createCharacter.ts).
  *
  * The whole structure — posts, bracing, footings, bezel, catwalk and
  * lamps — is a *single* `LineSegments`, with the lamp heads' warm color
@@ -60,6 +74,7 @@ const LAMP_HEAD_HALF = 0.038;
  */
 export function createGroundBillboard(
   panel: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>,
+  options: GroundBillboardOptions,
 ): THREE.Group {
   const group = new THREE.Group();
   group.name = "ground-billboard";
@@ -139,6 +154,16 @@ export function createGroundBillboard(
     segment(x, armTop, 0, x, headY, LAMP_REACH);
     segment(x - LAMP_HEAD_HALF, headY, LAMP_REACH, x + LAMP_HEAD_HALF, headY, LAMP_REACH, lampColor);
   }
+
+  // The panel's own figure, merged into this same buffer — see
+  // createCharacter.ts for why it isn't its own object.
+  pushCharacter(
+    positions,
+    colors,
+    placeCharacter(options.seed, panelWidth),
+    structureColor,
+    options.accent ? new THREE.Color(options.accent) : structureColor,
+  );
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
