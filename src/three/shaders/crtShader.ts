@@ -101,9 +101,17 @@ export const CRTShader = {
 
       // Light vignette. (smoothstep args ascending — GLSL leaves the
       // edge0 > edge1 case implementation-defined, so invert explicitly
-      // rather than rely on it.)
+      // rather than rely on it.) Masked by the same isContent as the
+      // scanlines above, for the same reason plus one more: left
+      // unmasked, this darkens in-bounds empty background (sky/ground)
+      // near the frame edges while the *out-of-bounds* bezel right next
+      // to it stays at full, undarkened uBezelColor — a visible seam
+      // exactly at the curved screen's boundary, reported with a
+      // screenshot showing it. Masking makes the whole flat background
+      // — bezel and in-bounds alike — one continuous, unshaded fill;
+      // only real geometry still gets darkened toward the edges.
       float vignette = 1.0 - smoothstep(0.35, 0.95, dist);
-      color *= mix(1.0, vignette, uVignetteStrength);
+      color *= mix(1.0, vignette, uVignetteStrength * isContent);
 
       // Subtle brightness flicker: two incommensurate sine frequencies so
       // it doesn't read as a mechanical pulse, kept small (uFlickerStrength

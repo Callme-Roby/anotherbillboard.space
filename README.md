@@ -213,6 +213,20 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     à l'écran (aucune bande) par opposition à la grille du sol, qui elle
     continue d'en afficher (un vrai élément de l'environnement, pas du
     vide).
+  - Vignette masquée par ce même `isContent`, pour la même raison plus
+    une autre spécifique à cet effet : non masquée, elle assombrissait le
+    fond "vide" (ciel/sol) à l'intérieur de l'écran courbé à mesure qu'on
+    approche des bords, alors que juste à côté, hors de l'écran courbé,
+    le bezel (`uBezelColor`, retour anticipé du shader avant tout calcul
+    de vignette) restait à pleine luminosité — une coupure visible pile à
+    la frontière de la courbure, remontée avec une capture montrant une
+    fine bande plus claire au raccord. Masquer met fond plat et bezel au
+    même niveau (un seul remplissage continu, non ombré) sans toucher à
+    la courbure elle-même ni à l'assombrissement réel sur la géométrie
+    proche des bords — vérifié en dézoomant au maximum (la frontière de
+    courbure est alors la plus visible) : plus aucune coupure au raccord,
+    ni au bord haut ni au bord bas, et la vignette continue d'assombrir
+    les tours proches des bords de l'écran.
 - Minimap (bas-gauche) et légende (bas-droite), mises à jour hors du
   cycle de rendu React (event bus + DOM direct, pas de re-render à
   chaque frame de scroll).
