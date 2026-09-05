@@ -29,40 +29,42 @@ export const MOCK_PANELS: PlaceholderPanel[] = [
 ];
 
 /**
- * The central building's top 1-4 ranking screens — the rotating summit
- * assembly on the tallest tower (see createCentralBuilding.ts).
- * Deliberately huge — wider than most of the cluster's own towers (the
- * tallest is 2.4 wide, see TOWERS in createCentralBuilding.ts) — on
- * purpose, the opposite of ground panels (placeholders/sizing.ts,
- * lib/economy.ts), which stay small: a top rank on the building is
- * meant to read as a real reward, a big showcase billboard like a real
- * rooftop spectacular, not a screen that has to compete with the
- * building for attention.
+ * The five ranked screens on the skyline — one per tower, rank 1 on the
+ * tallest. Content only: each one's *size and shape* comes from the
+ * screen rig it's mounted in (see SKYLINE in createCentralBuilding.ts),
+ * because a corner wrap's two halves and a stack's ticker strip are
+ * dimensions of the mount, not of the panel.
+ *
+ * Deliberately huge in those rigs — routinely wider than the tower
+ * carrying them — and the exact opposite of ground panels
+ * (placeholders/sizing.ts, lib/economy.ts), which stay small: a top-five
+ * rank is meant to read as a real reward, a spectacular you can spot
+ * from across the plaza, not a screen competing with the building for
+ * attention.
  */
 export const RANK_SLOT_PLACEHOLDERS: PlaceholderPanel[] = [
-  { id: "rank-1", amount: 0, color: "#f4d35e", label: "1", size: { width: 3.2, height: 2.4 } },
-  { id: "rank-2", amount: 0, color: "#cfd8dc", label: "2", size: { width: 2.8, height: 2.1 } },
-  { id: "rank-3", amount: 0, color: "#c98a4b", label: "3", size: { width: 2.4, height: 1.8 } },
-  { id: "rank-4", amount: 0, color: "#78909c", label: "4", size: { width: 2.0, height: 1.5 } },
+  { id: "rank-1", amount: 0, color: "#f4d35e", label: "1" },
+  { id: "rank-2", amount: 0, color: "#9aa7b0", label: "2" },
+  { id: "rank-3", amount: 0, color: "#c98a4b", label: "3" },
+  { id: "rank-4", amount: 0, color: "#78909c", label: "4" },
+  { id: "rank-5", amount: 0, color: "#6b8f71", label: "5" },
 ];
 
 /**
- * Decorative facade screens dotted across the central building's other
- * towers — not tied to any real ranking or purchase, just set dressing
- * so the cluster reads as a lived-in skyline (per a user-provided
- * reference) rather than bare boxes. Big enough to be a real feature of
- * each facade (like the rotating summit above, in contrast to small
- * ground panels) but kept within their own tower's width — unlike the
- * summit screens, these are flush-mounted on a specific wall, so
- * overhanging it would look like a placement bug rather than a real
- * spectacular. See createCentralBuilding.ts for which tower each one
- * sits on.
+ * The rotating summit's screens, on the mast above the tallest tower.
+ * Three of the four carry site-wide announcements; the fourth is rank
+ * 1's bonus screen, in *addition* to the corner wrap it already owns on
+ * the shaft below — the visible privilege of the top spot, seen from
+ * every angle as the rotor turns.
+ *
+ * Order matters: index 0 is the rank-1 slot (see ROTOR_RANK_SLOT in
+ * createCentralBuilding.ts), the rest are announcements.
  */
-export const FACADE_DECOR_PLACEHOLDERS: PlaceholderPanel[] = [
-  { id: "facade-decor-1", amount: 0, color: "#6b8f71", label: "＋", size: { width: 1.3, height: 1.0 } },
-  { id: "facade-decor-2", amount: 0, color: "#b5651d", label: "%", size: { width: 1.1, height: 0.85 } },
-  { id: "facade-decor-3", amount: 0, color: "#4a6fa5", label: "◆", size: { width: 1.2, height: 0.9 } },
-  { id: "facade-decor-4", amount: 0, color: "#9a5b8f", label: "★", size: { width: 1.4, height: 1.05 } },
+export const ANNOUNCEMENT_PLACEHOLDERS: PlaceholderPanel[] = [
+  { id: "rotor-rank-1", amount: 0, color: "#f4d35e", label: "1" },
+  { id: "rotor-annonce-1", amount: 0, color: "#3f88c5", label: "INFO" },
+  { id: "rotor-annonce-2", amount: 0, color: "#e94f37", label: "LIVE" },
+  { id: "rotor-annonce-3", amount: 0, color: "#44bba4", label: "NEWS" },
 ];
 
 /**

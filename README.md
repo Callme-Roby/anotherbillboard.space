@@ -53,46 +53,71 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
 
 ### Scène 3D (première étape)
 
-- Bâtiment central : un cluster de tours de hauteurs variées, **chacune
-  posée directement au sol sur son propre pied** (plus de podium partagé)
-  **et à une profondeur (z) différente** — pas toutes alignées sur la
-  même ligne face caméra (`createCentralBuilding.ts`). Les deux effets
-  recherchés : que chaque tour se lise clairement comme un bâtiment à
-  part plutôt qu'un seul bloc fusionné, et une vraie sensation de
-  profondeur/parallaxe entre elles en zoomant — pas seulement une
+- Skyline central : cinq tours de hauteurs variées, **chacune posée
+  directement au sol sur son propre pied** (pas de podium partagé) **et à
+  une profondeur (z) différente** — pas toutes alignées sur la même ligne
+  face caméra (`SKYLINE` dans `createCentralBuilding.ts`). Les deux
+  effets recherchés : que chaque tour se lise clairement comme un
+  bâtiment à part plutôt qu'un seul bloc fusionné, et une vraie sensation
+  de profondeur/parallaxe entre elles en zoomant — pas seulement une
   silhouette qui varie en hauteur.
-  - Les 4 écrans de classement (top-4 paiements — voir `GET /api/buildings`
-    plus bas) sont regroupés en un **sommet rotatif** sur la tour la plus
-    haute : un mât au-dessus de son pinacle porte les 4 écrans disposés
-    en croix, qui tournent lentement ensemble autour de l'axe du mât
-    (`createRotatingSummit`, `SceneManager` fait avancer la rotation
-    chaque frame). Remplace une version précédente où les 4 rangs étaient
-    dispersés (mâts + façades sur plusieurs tours) — regroupés ici pour
-    que la position la plus haute du classement se voie vraiment comme
-    une récompense/un point focal, pas un détail perdu dans le décor.
-    **Volontairement énormes** (`RANK_SLOT_PLACEHOLDERS` — le rang 1 fait
-    3,2 de large contre 1,6-2,4 pour les tours elles-mêmes, donc dépasse
-    largement la largeur de la tour qui le porte) — l'inverse des
-    panneaux au sol (voir plus bas) : décrocher un rang au sommet doit se
-    voir de loin comme une vraie récompense, pas un détail qu'il faut
-    chercher. `SUMMIT_ROTOR_RADIUS` a dû grandir avec eux (sinon les 4
-    écrans se chevauchaient/traversaient le mât) et `CAMERA_LOOK_AT.y`
-    a été remonté en conséquence (le sommet du rang 1 atteint maintenant
-    ~y=11.4, revérifié à l'écran). Encore statique : ces 4 emplacements
-    affichent des données de démonstration (`RANK_SLOT_PLACEHOLDERS`),
-    rien côté scène ne consomme encore `GET /api/buildings` — la
-    disposition est prête, le branchement sur le vrai classement reste à
-    faire.
-  - Un écran décoratif par tour restante (4 au total), encastré en
-    façade à des hauteurs variées — pas relié à un vrai classement,
-    juste du décor pour que le cluster se lise comme un skyline vivant
-    plutôt que des boîtes nues (`FACADE_DECOR_PLACEHOLDERS`), d'après une
-    référence visuelle fournie par l'utilisateur. Grands eux aussi (même
-    logique que le sommet ci-dessus) mais sans dépasser la largeur de
-    leur propre tour, contrairement au sommet : contrairement au mât du
-    sommet (libre au-dessus du toit), ceux-ci sont encastrés à plat sur
-    une façade précise — déborder dessus lirait comme un bug de
-    placement plutôt qu'un vrai panneau spectaculaire.
+  - **Chaque tour est un empilement de volumes** (socle / fût / couronne)
+    et non une boîte unique (`createSkyscraper.ts`), habillé de fenêtres,
+    d'un mât d'antenne à pointe lumineuse et de spots de toiture. Tout
+    cet habillage est de la géométrie *ligne*, rassemblée en exactement
+    deux `LineSegments` par bâtiment (un sombre, un clair) quel que soit
+    le nombre de fenêtres ou de spots : le détail coûte des sommets, pas
+    des draw calls — c'est ce qui empêche "ajouter du détail" de devenir
+    "ajouter du coût par frame". C'est aussi ce qui survit à la basse
+    résolution interne de la scène (voir post-traitement) : un tiret d'un
+    texel se lit encore comme une fenêtre, là où une petite boîte ombrée
+    tournerait en bouillie. Densité des grilles de fenêtres réglée à
+    l'écran et pas sur le papier : des tirets trop longs se lisaient
+    comme des corniches d'étage plutôt que comme des fenêtres.
+  - **Les cinq premières positions du classement ont chacune leur tour**,
+    de gauche à droite rangs 4 / 3 / 1 / 2 / 5 — la meilleure place au
+    centre et la plus haute, les autres redescendant vers les côtés, pour
+    que le classement se lise dans la silhouette avant même de lire un
+    chiffre (`RANK_SLOT_PLACEHOLDERS`, et `CENTRAL_RANKING_SIZE` côté
+    `GET /api/buildings`).
+  - **Aucune de ces cinq n'est accrochée de la même façon**
+    (`createScreenRig.ts`) — c'est ce qui sépare un pâté de maisons façon
+    Times Square de cinq rectangles alignés :
+    - `wrap` — l'image tourne le coin du bâtiment sur la face latérale
+      (rangs 1 et 4) ;
+    - `banner` — ruban vertical en portrait le long du fût (rang 2) ;
+    - `stack` — écran principal avec son bandeau défilant suspendu
+      dessous (rang 3) ;
+    - `crown` — écran surélevé sur pieds au-dessus du toit, incliné vers
+      l'arrière (rang 5).
+    Chacun ajoute ses propres détails d'écran : cadre/bezel, liseré LED,
+    entretoises de fixation vers le mur. Tout reste des plans texturés
+    plats (`createPanel.ts`) : les vrais écrans issus de la base viendront
+    se poser dans ces supports sans cas particulier par forme.
+  - Ces écrans **débordent volontairement** la largeur de la tour qui les
+    porte — l'inverse des panneaux au sol (voir plus bas), qui restent
+    petits : décrocher un top 5 doit se voir de loin comme une vraie
+    récompense, pas un détail qu'il faut chercher. Le rang 4 a dû être
+    remonté du socle au fût : la rangée de panneaux au sol se tient à
+    z=9, devant tout le cluster, et masquait purement et simplement tout
+    ce qui est sous y≈2 — constaté à l'écran.
+  - **Sommet rotatif** au-dessus de la tour la plus haute : un mât porte
+    4 écrans disposés en croix qui tournent lentement ensemble autour de
+    son axe (`createRotatingSummit`, `SceneManager` fait avancer la
+    rotation chaque frame). Trois passent des annonces du site ; le
+    quatrième est l'écran bonus du rang 1, **en plus** du wrap qu'il a
+    déjà sur le fût en dessous (`ANNOUNCEMENT_PLACEHOLDERS`) — le
+    privilège visible de la première place, vu sous tous les angles à
+    mesure que le rotor tourne. `ROTOR_RADIUS` est vérifié contre
+    `SKYLINE` : un écran de largeur w centré à ce rayon balaie
+    √(r² + (w/2)²) ≈ 2,22 autour du mât, contre ≈ 2,77 pour la surface de
+    tour voisine la plus proche. `CAMERA_LOOK_AT.y` est calé en
+    conséquence (le sommet culmine maintenant à ~y=10,6, revérifié à
+    l'écran).
+  - Encore statique : ces emplacements affichent des données de
+    démonstration, rien côté scène ne consomme encore
+    `GET /api/buildings` — la disposition est prête, le branchement sur
+    le vrai classement reste à faire.
 - Sol + grille, panneau signature "ROBY" fixe et excentré.
 - Caméra perspective à *rig* fixe (position/visée de base posées une
   fois), vue de face au niveau du sol (pas d'angle plongeant) :
@@ -400,7 +425,7 @@ src/
 ├── three/
 │   ├── engine/      # SceneManager (orchestrateur), CameraController, PostProcessing,
 │   │                 # LivePanels (données réelles + temps réel), constants, sceneEvents
-│   ├── objects/      # Factories de mesh : bâtiment, bâtiment central, panneau (mock + réel), sol
+│   ├── objects/      # Factories de mesh : volume, gratte-ciel (tiers/fenêtres/antennes), skyline, supports d'écran, panneau (mock + réel), sol
 │   ├── shaders/      # CRTShader
 │   └── placeholders/ # Données/mise en page de démonstration (utilisées tant qu'aucun panneau réel n'existe)
 └── lib/

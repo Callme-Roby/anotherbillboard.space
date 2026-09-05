@@ -25,7 +25,7 @@ export const buildings = pgTable("buildings", {
   // free text — see `panels.category` below for why.
   type: text("type").notNull(),
 
-  // Resolved: the central building's top 1-4 ranking is *computed* from
+  // Resolved: the central building's top 1-5 ranking is *computed* from
   // `panels.amount` at read time (whichever panels currently have the
   // highest amounts), not stored here — so `rank` is unused for now.
   // Brief: "rank (nullable — 1 à 4 pour le bâtiment central)"; kept as a

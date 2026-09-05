@@ -1,12 +1,27 @@
 import * as THREE from "three";
 
-import { FACADE_DECOR_PLACEHOLDERS, RANK_SLOT_PLACEHOLDERS } from "../placeholders/mockPanels";
-import type { BuildingDimensions } from "./createBuilding";
+import { ANNOUNCEMENT_PLACEHOLDERS, RANK_SLOT_PLACEHOLDERS } from "../placeholders/mockPanels";
 import { createBuildingMesh } from "./createBuilding";
-import { createPanelMesh } from "./createPanel";
+import { createScreenRig, SCREEN_STANDOFF, type ScreenRigSpec } from "./createScreenRig";
+import { createSkyscraper, type SkyscraperSpec } from "./createSkyscraper";
 
-interface TowerSpec extends BuildingDimensions {
-  /** Horizontal offset from the cluster's center. */
+interface TowerScreen {
+  /** Index into RANK_SLOT_PLACEHOLDERS — 0 is rank 1. */
+  rank: number;
+  /** Tier whose front face the rig is mounted off. */
+  tier: number;
+  /** Local Y of the rig's main face center. */
+  y: number;
+  /**
+   * Pulls the rig back from that tier's front face — only used by the
+   * roof-mounted `crown`, whose legs have to land *on* the roof rather
+   * than off its front edge.
+   */
+  inset?: number;
+  rig: ScreenRigSpec;
+}
+
+interface TowerSpec {
   x: number;
   /**
    * Depth offset from the cluster's nominal z=0 line — positive is
@@ -14,70 +29,161 @@ interface TowerSpec extends BuildingDimensions {
    * Each tower stands on its own footprint at varying proximity to the
    * camera on purpose: a shared podium at a single depth read as one
    * fused monolith rather than a cluster of distinct buildings, and gave
-   * no parallax as the camera zooms/pans. Adjacent towers' footprints
-   * are given enough X clearance that they don't overlap regardless of
-   * this z offset (checked by hand against each pair below).
+   * no parallax as the camera zooms/pans.
    */
   z: number;
+  building: SkyscraperSpec;
+  screen: TowerScreen;
 }
 
-// A cluster of towers of varying height, each individually grounded at
-// z=0 — no shared podium (per user direction: buildings shouldn't
-// necessarily share a base, and standing at different distances from the
-// camera is what sells real depth between them, not just a taller/shorter
-// silhouette). Generously gapped in x (unlike the old edge-to-edge
-// packing) so each one reads as its own standalone structure. Still
-// plain boxes — the "simple geometry, unlit" spec applies to shape count
-// and material, not to silhouette variety.
-//
-// Index 2 (x=0) is the tallest and carries the rotating summit — see
-// SUMMIT_TOWER_INDEX below; the rest each carry one decorative facade
-// screen (FACADE_MOUNTS).
-const TOWERS: TowerSpec[] = [
-  { x: -5.5, z: 1.3, width: 2.0, height: 5.0, depth: 2.0 },
-  { x: -2.8, z: -0.9, width: 1.6, height: 6.6, depth: 1.6 },
-  { x: 0, z: 0.6, width: 2.4, height: 8.6, depth: 2.4 }, // central spire, tallest
-  { x: 2.9, z: -1.4, width: 1.8, height: 7.6, depth: 1.8 },
-  { x: 5.6, z: 0.9, width: 2.2, height: 4.0, depth: 2.2 },
+/**
+ * The skyline: five towers, each carrying exactly one of the top five
+ * ranked screens, left to right ranks 4 / 3 / 1 / 2 / 5 — the best spot
+ * in the middle and the highest up, the rest falling away to the sides,
+ * so the ranking is legible from the silhouette alone before you read a
+ * single number.
+ *
+ * Every tower is a *stack* of boxes (podium / shaft / crown) rather than
+ * one volume, and no two carry their screen the same way (see
+ * ScreenRigKind) — the two things that separate a Times Square block
+ * from five rectangles in a row. Screens routinely overhang the tower
+ * holding them; that's the look, not a bug.
+ *
+ * Horizontal clearances between neighbouring towers *and their
+ * overhanging screens* were checked by hand across this table; the
+ * rotating summit's swept radius is checked against it too (see
+ * ROTOR_RADIUS).
+ */
+const SKYLINE: TowerSpec[] = [
+  {
+    // Rank 4 — a low block wearing its wrap around the shaft's bottom
+    // corner. Mounted on the shaft rather than the (visually more
+    // interesting) street-level podium because the ground billboard row
+    // stands at z=9, in front of the whole cluster: anything below
+    // y ~= 2 here is simply occluded by it — checked on screen.
+    x: -6.2,
+    z: 1.4,
+    building: {
+      tiers: [
+        { width: 2.8, height: 1.5, depth: 2.2 },
+        { width: 2.0, height: 3.6, depth: 2.0, windows: { rows: 7, columns: 5 } },
+      ],
+      antenna: { height: 0.9 },
+      roofSpots: { tier: 1, count: 4 },
+    },
+    screen: {
+      rank: 3,
+      tier: 1,
+      y: 2.5,
+      rig: { kind: "wrap", width: 2.9, height: 1.7, wrapDepth: 1.0, wrapSide: -1 },
+    },
+  },
+  {
+    // Rank 3 — slim shaft, screen with its own ticker strip slung under
+    // it, set high enough to clear the neighbours in front.
+    x: -3.1,
+    z: -1.0,
+    building: {
+      tiers: [
+        { width: 1.8, height: 5.0, depth: 1.8, windows: { rows: 9, columns: 5 } },
+        { width: 1.3, height: 1.1, depth: 1.3, windows: { rows: 2, columns: 2 } },
+      ],
+      antenna: { height: 1.1 },
+      roofSpots: { tier: 1, count: 3 },
+    },
+    screen: {
+      rank: 2,
+      tier: 0,
+      y: 3.6,
+      rig: { kind: "stack", width: 2.4, height: 1.7, tickerHeight: 0.4 },
+    },
+  },
+  {
+    // Rank 1 — the tallest, and the only one carrying two screens: a
+    // huge corner wrap on the shaft, plus its bonus slot on the rotating
+    // summit above (see createRotatingSummit).
+    x: 0,
+    z: 0.6,
+    building: {
+      tiers: [
+        { width: 3.2, height: 1.8, depth: 2.8, windows: { rows: 3, columns: 7 } },
+        { width: 2.4, height: 5.4, depth: 2.4, windows: { rows: 10, columns: 6 } },
+        { width: 1.5, height: 1.0, depth: 1.5, windows: { rows: 2, columns: 2 } },
+      ],
+      roofSpots: { tier: 1, count: 5 },
+    },
+    screen: {
+      rank: 0,
+      tier: 1,
+      y: 4.6,
+      rig: { kind: "wrap", width: 3.6, height: 2.6, wrapDepth: 1.4, wrapSide: 1 },
+    },
+  },
+  {
+    // Rank 2 — the portrait ribbon: a screen taller than it is wide,
+    // running most of the shaft, the loudest silhouette after rank 1's.
+    x: 3.2,
+    z: -1.3,
+    building: {
+      tiers: [
+        { width: 1.9, height: 6.2, depth: 1.9, windows: { rows: 11, columns: 5 } },
+        { width: 1.4, height: 1.0, depth: 1.4, windows: { rows: 2, columns: 2 } },
+      ],
+      antenna: { height: 1.3 },
+      roofSpots: { tier: 1, count: 3 },
+    },
+    screen: {
+      rank: 1,
+      tier: 0,
+      y: 3.9,
+      rig: { kind: "banner", width: 2.2, height: 4.2 },
+    },
+  },
+  {
+    // Rank 5 — the shortest tower, compensating with a rooftop
+    // spectacular raised on legs and tilted back over the street.
+    x: 6.3,
+    z: 1.0,
+    building: {
+      tiers: [
+        { width: 2.6, height: 1.2, depth: 2.2 },
+        { width: 2.2, height: 2.6, depth: 2.2, windows: { rows: 5, columns: 5 } },
+      ],
+      antenna: { height: 0.7 },
+      roofSpots: { tier: 1, count: 4 },
+    },
+    screen: {
+      rank: 4,
+      tier: 1,
+      y: 4.9,
+      inset: 0.25,
+      rig: { kind: "crown", width: 3.2, height: 1.5 },
+    },
+  },
 ];
 
-const SUMMIT_TOWER_INDEX = 2;
-
-// Small cap on the central spire for a less flat silhouette at the peak.
-const SPIRE_CAP: BuildingDimensions = { width: 1.3, height: 1.1, depth: 1.3 };
-
-// Where each non-summit tower's decorative facade screen sits, as a
-// fraction of that tower's own height — varied a little per tower rather
-// than a single flat fraction, so they don't all line up in a row.
-// Index into TOWERS; must be all indices except SUMMIT_TOWER_INDEX, same
-// length/order as FACADE_DECOR_PLACEHOLDERS.
-const FACADE_MOUNTS: { tower: number; heightFraction: number }[] = [
-  { tower: 0, heightFraction: 0.5 },
-  { tower: 1, heightFraction: 0.62 },
-  { tower: 3, heightFraction: 0.45 },
-  { tower: 4, heightFraction: 0.55 },
-];
+/** Index into SKYLINE of the tower carrying the rotating summit. */
+const SUMMIT_TOWER = 2;
 
 const POLE_COLOR = 0xffffff;
 
-// The rotating summit assembly: a mast above the tallest tower's apex
-// carrying 4 screens arranged like spokes, slowly turning around it —
-// the top-4 cumulative-payment ranking, replacing an earlier version
-// scattered as individual rooftop/facade mounts across several towers
-// (see git history). Deliberately slow (radians/second): this is meant
-// to read as a real rotating sign, not spin fast enough to be
-// distracting or to blur under the scene's low internal render
-// resolution.
-const SUMMIT_MAST_HEIGHT = 0.5;
-// Clears rank-1's own half-width (RANK_SLOT_PLACEHOLDERS[0], the widest
-// at 3.2 -> half-width 1.6) with margin, so its inner edge doesn't reach
-// the mast — the 4 screens are big now (on purpose, see
-// RANK_SLOT_PLACEHOLDERS), so this had to grow with them. Since all 4
-// screens are rigidly attached to the same rotor and only ever rotate
-// together, checking clearance once at this fixed arrangement is enough
-// — nothing moves relative to anything else as it spins.
-const SUMMIT_ROTOR_RADIUS = 2.0;
-const SUMMIT_ROTOR_SPEED = 0.3;
+// The rotating summit: a mast above the tallest tower's apex carrying 4
+// screens arranged like spokes, slowly turning. Three of them run
+// site-wide announcements; the fourth is rank 1's bonus screen — see
+// ANNOUNCEMENT_PLACEHOLDERS. Deliberately slow (radians/second): a real
+// rotating sign, not something that spins fast enough to distract or to
+// blur under the scene's low internal render resolution.
+const ROTOR_MAST_HEIGHT = 0.45;
+// Clears the cap below it, and — checked against SKYLINE — keeps the
+// screens' swept reach clear of the neighbouring towers. A screen of
+// width w centered at this radius sweeps out to sqrt(r² + (w/2)²)
+// = sqrt(1.8² + 1.3²) ≈ 2.22 from the mast, against a nearest
+// neighbouring tower surface at ≈ 2.77. Since all four screens are
+// rigidly attached to the same rotor, checking that once is enough —
+// nothing moves relative to anything else as it spins.
+const ROTOR_RADIUS = 1.8;
+const ROTOR_SPEED = 0.3;
+const ROTOR_SCREEN = { width: 2.6, height: 1.9 };
 
 export interface CentralBuilding {
   group: THREE.Group;
@@ -86,54 +192,48 @@ export interface CentralBuilding {
 }
 
 /**
- * The central building: a cluster of individually-grounded towers (see
- * TOWERS above). Carries the top 1-4 cumulative-payment ranking as a
- * rotating 4-screen summit on the tallest tower (see
- * createRotatingSummit), plus one small decorative facade screen per
- * other tower (FACADE_MOUNTS) — not tied to any ranking, just set
- * dressing so the cluster reads as a lived-in skyline rather than bare
- * boxes, per a user-provided reference.
+ * The skyline cluster (see SKYLINE): five individually-grounded towers,
+ * each carrying one of the top five ranked screens, plus the rotating
+ * announcement summit on the tallest.
  */
 export function createCentralBuilding(): CentralBuilding {
   const group = new THREE.Group();
   group.name = "central-building";
 
-  for (const tower of TOWERS) {
-    const towerGroup = createBuildingMesh(tower);
-    towerGroup.position.set(tower.x, 0, tower.z);
-    group.add(towerGroup);
+  let summitApexY = 0;
 
-    if (tower.x === 0) {
-      const cap = createBuildingMesh(SPIRE_CAP);
-      cap.position.set(tower.x, tower.height, tower.z);
-      group.add(cap);
-    }
+  for (const tower of SKYLINE) {
+    const skyscraper = createSkyscraper(tower.building);
+    skyscraper.group.position.set(tower.x, 0, tower.z);
+    group.add(skyscraper.group);
+
+    const { screen } = tower;
+    const mountTier = tower.building.tiers[screen.tier];
+    const rig = createScreenRig(RANK_SLOT_PLACEHOLDERS[screen.rank], screen.rig);
+    rig.position.set(
+      tower.x,
+      screen.y,
+      tower.z + mountTier.depth / 2 + SCREEN_STANDOFF - (screen.inset ?? 0),
+    );
+    group.add(rig);
+
+    if (tower === SKYLINE[SUMMIT_TOWER]) summitApexY = skyscraper.apexY;
   }
 
-  FACADE_MOUNTS.forEach((mount, i) => {
-    const tower = TOWERS[mount.tower];
-    const mesh = createPanelMesh(FACADE_DECOR_PLACEHOLDERS[i]);
-    const frontZ = tower.z + tower.depth / 2 + 0.02;
-    mesh.position.set(tower.x, tower.height * mount.heightFraction, frontZ);
-    group.add(mesh);
-  });
-
-  const summitTower = TOWERS[SUMMIT_TOWER_INDEX];
-  const apexY = summitTower.height + SPIRE_CAP.height;
-  const summit = createRotatingSummit(summitTower.x, summitTower.z, apexY);
+  const summitTower = SKYLINE[SUMMIT_TOWER];
+  const summit = createRotatingSummit(summitTower.x, summitTower.z, summitApexY);
   group.add(summit.group);
 
   return { group, update: summit.update };
 }
 
 /**
- * Four screens standing above a roofline on a single central mast,
- * arranged like spokes and slowly rotating around it — the "showcase"
- * mount, reserved for the tallest tower where it reads clearly against
- * the sky. One mast rather than a support per screen: at the scene's low
- * internal render resolution (see PostProcessing) several thin adjacent
- * struts have little margin to still read as distinct shapes, where a
- * single slightly thicker mast stays legible at any zoom level.
+ * Four screens standing above the roofline on a single central mast,
+ * arranged like spokes and slowly rotating around it. One mast rather
+ * than a support per screen: at the scene's low internal render
+ * resolution (see PostProcessing) several thin adjacent struts have
+ * little margin to still read as distinct shapes, where a single
+ * slightly thicker mast stays legible at any zoom level.
  */
 function createRotatingSummit(
   x: number,
@@ -142,29 +242,29 @@ function createRotatingSummit(
 ): { group: THREE.Group; update: (delta: number) => void } {
   const group = new THREE.Group();
 
-  const mast = createBuildingMesh({ width: 0.12, height: SUMMIT_MAST_HEIGHT, depth: 0.12 }, POLE_COLOR);
+  const mast = createBuildingMesh({ width: 0.14, height: ROTOR_MAST_HEIGHT, depth: 0.14 }, POLE_COLOR);
   mast.position.set(x, apexY, z);
   group.add(mast);
 
   const rotor = new THREE.Group();
-  rotor.position.set(x, apexY + SUMMIT_MAST_HEIGHT, z);
-  RANK_SLOT_PLACEHOLDERS.forEach((slot, i) => {
-    const angle = (i / RANK_SLOT_PLACEHOLDERS.length) * Math.PI * 2;
-    const mesh = createPanelMesh(slot);
-    // Positioned and rotated by the *same* angle: the plane's local +z
-    // (its front, non-mirrored face — see createPanel.ts's fixed +Z
-    // convention) then points the same way it's offset, so each screen
-    // faces outward along its own spoke rather than across the rotor.
-    mesh.position.set(Math.sin(angle) * SUMMIT_ROTOR_RADIUS, 0, Math.cos(angle) * SUMMIT_ROTOR_RADIUS);
-    mesh.rotation.y = angle;
-    rotor.add(mesh);
+  rotor.position.set(x, apexY + ROTOR_MAST_HEIGHT + ROTOR_SCREEN.height / 2, z);
+  ANNOUNCEMENT_PLACEHOLDERS.forEach((panel, i) => {
+    const angle = (i / ANNOUNCEMENT_PLACEHOLDERS.length) * Math.PI * 2;
+    const screen = createScreenRig(panel, { kind: "banner", ...ROTOR_SCREEN });
+    // Positioned and rotated by the *same* angle: each screen's front
+    // (its local +Z, see createPanel.ts) then points the way it's
+    // offset, so it faces outward along its own spoke rather than
+    // across the rotor.
+    screen.position.set(Math.sin(angle) * ROTOR_RADIUS, 0, Math.cos(angle) * ROTOR_RADIUS);
+    screen.rotation.y = angle;
+    rotor.add(screen);
   });
   group.add(rotor);
 
   return {
     group,
     update: (delta: number) => {
-      rotor.rotation.y += delta * SUMMIT_ROTOR_SPEED;
+      rotor.rotation.y += delta * ROTOR_SPEED;
     },
   };
 }

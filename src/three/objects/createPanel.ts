@@ -11,15 +11,21 @@ const FAVICON_LOAD_TIMEOUT_MS = 4000;
 
 /**
  * A panel is always a flat textured plane — ground billboard or building
- * screen alike (buildings just place several of these on their faces).
+ * screen alike (a building screen is one or more of these, arranged by
+ * createScreenRig.ts).
  * The mock-data version's texture is a flat color field with a short
  * label; see createRealPanelMesh below for real (DB-backed) panels,
  * which additionally try to draw the scraped favicon.
  */
 export function createPanelMesh(
   panel: PlaceholderPanel,
+  sizeOverride?: { width: number; height: number },
 ): THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> {
-  const { width, height } = panel.size ?? sizeFromAmount(panel.amount);
+  // Screen rigs (createScreenRig.ts) size their own faces — a wrap's two
+  // halves and a stack's ticker strip are dimensions of the *mount*, not
+  // of the panel's content — so they pass an override rather than
+  // encoding one size per face back into the panel data.
+  const { width, height } = sizeOverride ?? panel.size ?? sizeFromAmount(panel.amount);
 
   const geometry = new THREE.PlaneGeometry(width, height);
   const canvas = drawPanelCanvas({ color: panel.color, label: panel.label });

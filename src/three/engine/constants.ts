@@ -18,9 +18,9 @@ export const CAMERA_FAR = 200;
 // Level, head-on view — camera sits at the same height as the look-at
 // target and faces it straight on (direction has no Y component), no
 // elevated/looking-down tilt.
-// y=4.2 roughly centers the central building (towers + its rotating
-// summit, whose screens are large now — see RANK_SLOT_PLACEHOLDERS — and
-// reach up to ~y=11.4, see createCentralBuilding.ts) vertically at the
+// y=4.2 roughly centers the skyline (the five towers plus the rotating
+// announcement summit above the tallest, whose screens top out at
+// ~y=10.6 — see SKYLINE in createCentralBuilding.ts) vertically at the
 // default zoom, while still keeping ground panels comfortably in frame
 // below. Re-verify visually after changing building heights or mount/
 // screen sizes — this is a "looks right in a screenshot" number, not
