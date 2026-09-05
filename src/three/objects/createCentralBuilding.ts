@@ -69,7 +69,14 @@ const POLE_COLOR = 0xffffff;
 // distracting or to blur under the scene's low internal render
 // resolution.
 const SUMMIT_MAST_HEIGHT = 0.5;
-const SUMMIT_ROTOR_RADIUS = 0.55;
+// Clears rank-1's own half-width (RANK_SLOT_PLACEHOLDERS[0], the widest
+// at 3.2 -> half-width 1.6) with margin, so its inner edge doesn't reach
+// the mast — the 4 screens are big now (on purpose, see
+// RANK_SLOT_PLACEHOLDERS), so this had to grow with them. Since all 4
+// screens are rigidly attached to the same rotor and only ever rotate
+// together, checking clearance once at this fixed arrangement is enough
+// — nothing moves relative to anything else as it spins.
+const SUMMIT_ROTOR_RADIUS = 2.0;
 const SUMMIT_ROTOR_SPEED = 0.3;
 
 export interface CentralBuilding {

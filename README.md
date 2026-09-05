@@ -70,15 +70,29 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     dispersés (mâts + façades sur plusieurs tours) — regroupés ici pour
     que la position la plus haute du classement se voie vraiment comme
     une récompense/un point focal, pas un détail perdu dans le décor.
-    Encore statique : ces 4 emplacements affichent des données de
-    démonstration (`RANK_SLOT_PLACEHOLDERS`), rien côté scène ne
-    consomme encore `GET /api/buildings` — la disposition est prête, le
-    branchement sur le vrai classement reste à faire.
-  - Un petit écran décoratif par tour restante (4 au total), encastré en
+    **Volontairement énormes** (`RANK_SLOT_PLACEHOLDERS` — le rang 1 fait
+    3,2 de large contre 1,6-2,4 pour les tours elles-mêmes, donc dépasse
+    largement la largeur de la tour qui le porte) — l'inverse des
+    panneaux au sol (voir plus bas) : décrocher un rang au sommet doit se
+    voir de loin comme une vraie récompense, pas un détail qu'il faut
+    chercher. `SUMMIT_ROTOR_RADIUS` a dû grandir avec eux (sinon les 4
+    écrans se chevauchaient/traversaient le mât) et `CAMERA_LOOK_AT.y`
+    a été remonté en conséquence (le sommet du rang 1 atteint maintenant
+    ~y=11.4, revérifié à l'écran). Encore statique : ces 4 emplacements
+    affichent des données de démonstration (`RANK_SLOT_PLACEHOLDERS`),
+    rien côté scène ne consomme encore `GET /api/buildings` — la
+    disposition est prête, le branchement sur le vrai classement reste à
+    faire.
+  - Un écran décoratif par tour restante (4 au total), encastré en
     façade à des hauteurs variées — pas relié à un vrai classement,
     juste du décor pour que le cluster se lise comme un skyline vivant
     plutôt que des boîtes nues (`FACADE_DECOR_PLACEHOLDERS`), d'après une
-    référence visuelle fournie par l'utilisateur.
+    référence visuelle fournie par l'utilisateur. Grands eux aussi (même
+    logique que le sommet ci-dessus) mais sans dépasser la largeur de
+    leur propre tour, contrairement au sommet : contrairement au mât du
+    sommet (libre au-dessus du toit), ceux-ci sont encastrés à plat sur
+    une façade précise — déborder dessus lirait comme un bug de
+    placement plutôt qu'un vrai panneau spectaculaire.
 - Sol + grille, panneau signature "ROBY" fixe et excentré.
 - Caméra perspective à *rig* fixe (position/visée de base posées une
   fois), vue de face au niveau du sol (pas d'angle plongeant) :
@@ -179,6 +193,26 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     frame mais le redimensionnement du render target réel n'a lieu que
     si la résolution arrondie change vraiment (sinon coûteux/risque de
     saccade à chaque frame d'un zoom en cours).
+  - Contours plus fins (`INTERNAL_RESOLUTION_SCALE` remonté encore, 0,42
+    → 0,6) : le contour noir (`EdgesGeometry`) de chaque forme fait
+    ~1 texel de large quelle que soit cette valeur (WebGL ignore en
+    pratique `LineBasicMaterial.linewidth` sur la plupart des
+    plateformes), donc c'est cette résolution interne — pas le matériau
+    du trait — qui détermine sur combien de vrais pixels écran ce texel
+    est étalé à l'agrandissement, et donc l'épaisseur perçue du trait.
+  - Scanlines masquées au fond plat de la scène : c'est un motif
+    purement écran (`uv.y`), indépendant de ce qui est réellement rendu
+    — sans rien de plus il bande aussi le ciel/sol vides, remonté
+    directement comme des "lignes horizontales sur toute la page en
+    fond". Le sol et le ciel sont tous les deux exactement
+    `BACKGROUND_COLOR` (`createGround.ts`) : comparer la couleur
+    échantillonnée à cette même référence (`uBezelColor`, déjà utilisée
+    pour le bezel de la courbure) sert donc aussi de test "fond vide ou
+    vraie géométrie", adouci en `smoothstep` pour ne pas ajouter un bord
+    de masque lui-même crénelé — vérifié en isolant une zone de ciel pur
+    à l'écran (aucune bande) par opposition à la grille du sol, qui elle
+    continue d'en afficher (un vrai élément de l'environnement, pas du
+    vide).
 - Minimap (bas-gauche) et légende (bas-droite), mises à jour hors du
   cycle de rendu React (event bus + DOM direct, pas de re-render à
   chaque frame de scroll).

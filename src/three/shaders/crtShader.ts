@@ -22,9 +22,9 @@ export const CRTShader = {
     uVignetteStrength: { value: 0.35 },
     uAberrationStrength: { value: 0.0025 },
     uCurvature: { value: 0.15 },
-    // Matches BACKGROUND_COLOR by default (set in PostProcessing.ts) so
-    // the area outside the curved screen blends with the scene instead
-    // of showing as a stray frame.
+    // Matches BACKGROUND_COLOR (set in PostProcessing.ts). Doubles as the
+    // reference the scanline mask compares against — see its own comment
+    // below — as well as the curved-screen bezel fill.
     uBezelColor: { value: new THREE.Color(0xffffff) },
   },
 
@@ -83,8 +83,21 @@ export const CRTShader = {
       // line tracks a real pixel row rather than an arbitrary frequency —
       // phase drifts slowly with uTime so the pattern rolls instead of
       // sitting frozen, like an old tube's imperfect vertical sync.
+      //
+      // Masked to actual scene content, not the flat background fill:
+      // scanlines are a *screen-space* pattern, entirely independent of
+      // what's being rendered, so without this they band evenly across
+      // the empty sky/ground too — reported directly against the running
+      // site as unwanted horizontal lines "across the whole page in the
+      // background". The ground and sky are both exactly BACKGROUND_COLOR
+      // (see createGround.ts), so comparing the sampled color against
+      // that same reference (uBezelColor) doubles as "is this empty
+      // background or real geometry" — smoothstep'd rather than a hard
+      // cutoff so the mask edge itself doesn't alias.
+      float bgDistance = distance(color, uBezelColor);
+      float isContent = smoothstep(0.02, 0.08, bgDistance);
       float scanline = sin(uv.y * uResolution.y * 3.14159265 + uTime * uScanlineScrollSpeed) * 0.5 + 0.5;
-      color *= mix(1.0, scanline, uScanlineIntensity);
+      color *= mix(1.0, scanline, uScanlineIntensity * isContent);
 
       // Light vignette. (smoothstep args ascending — GLSL leaves the
       // edge0 > edge1 case implementation-defined, so invert explicitly

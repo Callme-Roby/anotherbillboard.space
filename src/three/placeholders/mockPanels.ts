@@ -30,30 +30,39 @@ export const MOCK_PANELS: PlaceholderPanel[] = [
 
 /**
  * The central building's top 1-4 ranking screens — the rotating summit
- * assembly on the tallest tower (see createCentralBuilding.ts). Sized
- * small on purpose, like every other panel in the scene (see
- * placeholders/sizing.ts and lib/economy.ts): the building itself should
- * read as the reward for a top rank, not a screen competing with it for
- * attention.
+ * assembly on the tallest tower (see createCentralBuilding.ts).
+ * Deliberately huge — wider than most of the cluster's own towers (the
+ * tallest is 2.4 wide, see TOWERS in createCentralBuilding.ts) — on
+ * purpose, the opposite of ground panels (placeholders/sizing.ts,
+ * lib/economy.ts), which stay small: a top rank on the building is
+ * meant to read as a real reward, a big showcase billboard like a real
+ * rooftop spectacular, not a screen that has to compete with the
+ * building for attention.
  */
 export const RANK_SLOT_PLACEHOLDERS: PlaceholderPanel[] = [
-  { id: "rank-1", amount: 0, color: "#f4d35e", label: "1", size: { width: 0.5, height: 0.45 } },
-  { id: "rank-2", amount: 0, color: "#cfd8dc", label: "2", size: { width: 0.46, height: 0.41 } },
-  { id: "rank-3", amount: 0, color: "#c98a4b", label: "3", size: { width: 0.43, height: 0.38 } },
-  { id: "rank-4", amount: 0, color: "#78909c", label: "4", size: { width: 0.4, height: 0.35 } },
+  { id: "rank-1", amount: 0, color: "#f4d35e", label: "1", size: { width: 3.2, height: 2.4 } },
+  { id: "rank-2", amount: 0, color: "#cfd8dc", label: "2", size: { width: 2.8, height: 2.1 } },
+  { id: "rank-3", amount: 0, color: "#c98a4b", label: "3", size: { width: 2.4, height: 1.8 } },
+  { id: "rank-4", amount: 0, color: "#78909c", label: "4", size: { width: 2.0, height: 1.5 } },
 ];
 
 /**
- * Small decorative facade screens dotted across the central building's
- * other towers — not tied to any real ranking or purchase, just set
- * dressing so the cluster reads as a lived-in skyline (per a user-
- * provided reference) rather than bare boxes. See createCentralBuilding.ts.
+ * Decorative facade screens dotted across the central building's other
+ * towers — not tied to any real ranking or purchase, just set dressing
+ * so the cluster reads as a lived-in skyline (per a user-provided
+ * reference) rather than bare boxes. Big enough to be a real feature of
+ * each facade (like the rotating summit above, in contrast to small
+ * ground panels) but kept within their own tower's width — unlike the
+ * summit screens, these are flush-mounted on a specific wall, so
+ * overhanging it would look like a placement bug rather than a real
+ * spectacular. See createCentralBuilding.ts for which tower each one
+ * sits on.
  */
 export const FACADE_DECOR_PLACEHOLDERS: PlaceholderPanel[] = [
-  { id: "facade-decor-1", amount: 0, color: "#6b8f71", label: "＋", size: { width: 0.4, height: 0.35 } },
-  { id: "facade-decor-2", amount: 0, color: "#b5651d", label: "%", size: { width: 0.38, height: 0.33 } },
-  { id: "facade-decor-3", amount: 0, color: "#4a6fa5", label: "◆", size: { width: 0.36, height: 0.32 } },
-  { id: "facade-decor-4", amount: 0, color: "#9a5b8f", label: "★", size: { width: 0.42, height: 0.37 } },
+  { id: "facade-decor-1", amount: 0, color: "#6b8f71", label: "＋", size: { width: 1.3, height: 1.0 } },
+  { id: "facade-decor-2", amount: 0, color: "#b5651d", label: "%", size: { width: 1.1, height: 0.85 } },
+  { id: "facade-decor-3", amount: 0, color: "#4a6fa5", label: "◆", size: { width: 1.2, height: 0.9 } },
+  { id: "facade-decor-4", amount: 0, color: "#9a5b8f", label: "★", size: { width: 1.4, height: 1.05 } },
 ];
 
 /**

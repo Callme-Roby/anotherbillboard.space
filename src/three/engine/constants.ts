@@ -18,13 +18,14 @@ export const CAMERA_FAR = 200;
 // Level, head-on view — camera sits at the same height as the look-at
 // target and faces it straight on (direction has no Y component), no
 // elevated/looking-down tilt.
-// y=3.7 roughly centers the central building (towers + its rooftop-mounted
-// rank screens, the tallest of which reaches ~y=11.1 — see
-// createCentralBuilding.ts) vertically at the default zoom, while still
-// keeping ground panels comfortably in frame below. Re-verify visually
-// after changing building heights or mount heights — this is a "looks
-// right in a screenshot" number, not derived from a formula.
-export const CAMERA_LOOK_AT = new THREE.Vector3(0, 3.7, 0);
+// y=4.2 roughly centers the central building (towers + its rotating
+// summit, whose screens are large now — see RANK_SLOT_PLACEHOLDERS — and
+// reach up to ~y=11.4, see createCentralBuilding.ts) vertically at the
+// default zoom, while still keeping ground panels comfortably in frame
+// below. Re-verify visually after changing building heights or mount/
+// screen sizes — this is a "looks right in a screenshot" number, not
+// derived from a formula.
+export const CAMERA_LOOK_AT = new THREE.Vector3(0, 4.2, 0);
 export const CAMERA_DIRECTION = new THREE.Vector3(0, 0, 1);
 export const CAMERA_FIXED_DISTANCE = 30;
 // Desktop-tuned zoom-out floor. The *effective* min zoom used at runtime
@@ -83,10 +84,17 @@ export const SIGNATURE_PANEL_Z = 8;
 // scene is rendered at this (low) resolution into a NEAREST-filtered
 // render target, then the CRT pass upscales it into the full-resolution
 // canvas — that mismatch is what produces the blocky PS1-style pixel
-// grid, "for free", instead of a blur filter faking it. Raised from an
-// earlier 0.3 — reported as too aggressive — while still keeping a real
-// pixel-staircase look on edges, not smooth antialiasing.
-export const INTERNAL_RESOLUTION_SCALE = 0.42;
+// grid, "for free", instead of a blur filter faking it. Raised twice now
+// (0.3 -> 0.42 -> this): each shape's black EdgesGeometry outline is
+// ~1 texel wide regardless of this value (WebGL effectively ignores
+// LineBasicMaterial.linewidth on most platforms), so it's *this*
+// resolution — not the line material — that determines how many real
+// screen pixels that texel gets upscaled to, and thus how thick outlines
+// read; asked for visibly thinner lines, raised again rather than
+// switching outlines to a heavier true-width-line material. Still keeps
+// a real pixel-staircase look on edges at this value, not smooth
+// antialiasing — checked on screen, not assumed from the number alone.
+export const INTERNAL_RESOLUTION_SCALE = 0.6;
 // This internal resolution is otherwise fixed relative to the *viewport*
 // only, not the camera's zoom — since geometry shrinks on screen as the
 // camera zooms out, the same fixed pixel grid then covers each edge with
