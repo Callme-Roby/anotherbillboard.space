@@ -28,6 +28,14 @@ export const CHARACTER_HEIGHT = 0.3;
 /** Sideways stand-off from a panel's centre, as a multiple of its half-width. */
 const SIDE_FRACTION = 1.08;
 /**
+ * Half-width of the group that forms around the pointer, in world units.
+ * Wide enough that a dozen people read as a gathering rather than a
+ * stack, narrow enough that everyone stays within a screen of the
+ * cursor — the crowd is meant to be *with* you, never wandering out of
+ * frame.
+ */
+const CLUSTER_HALF_WIDTH = 1.9;
+/**
  * Depth band the crowd is spread through, in front of the panel row.
  * Standing them all at one depth reads as a row of cut-outs; spread over
  * a couple of units they overlap at different sizes and start reading as
@@ -39,14 +47,22 @@ const DEPTH_FAR = -0.6;
 export interface CrowdMember {
   /** Stable key — the panel's id. Keeps a walker's state across refetches. */
   id: string;
-  /** Where this person stands when the pointer is centred. */
+  /** Where this person starts, and stays if `anchored`. */
   homeX: number;
   z: number;
   height: number;
   /** Selects pose + build; see poseFromVariant. */
   variant: number;
-  /** How far this person ranges, relative to the crowd's base reach. */
-  reach: number;
+  /**
+   * Where this person stands *relative to the pointer* — its own fixed
+   * place in the group. Some stand to its left and some to its right, so
+   * a pointer moving right sends part of the crowd right and part of it
+   * left to take up position again, rather than everyone sliding as one
+   * block.
+   */
+  offsetX: number;
+  /** Stays at `homeX` and ignores the pointer entirely. */
+  anchored?: boolean;
   /** Worn on the head — the colour of the panel this person belongs to. */
   accent: THREE.Color;
 }
@@ -80,13 +96,18 @@ export function placeCharacter(
   const heightJitter = 1 + (((hash >>> 1) % 5) - 2) * 0.04;
   const depth = ((hash >>> 4) % 100) / 99;
 
+  // Spread across the group, biased away from dead centre so the middle
+  // doesn't bunch up right under the cursor.
+  const place = ((hash >>> 7) % 32) / 31;
+  const offsetX = (place * 2 - 1) * CLUSTER_HALF_WIDTH;
+
   return {
     id: seed,
     homeX: panelX + side * (panelWidth / 2) * SIDE_FRACTION,
     z: panelZ + DEPTH_FAR + depth * (DEPTH_NEAR - DEPTH_FAR),
     height: CHARACTER_HEIGHT * heightJitter,
     variant: hash >>> 9,
-    reach: 0.6 + (((hash >>> 7) % 8) / 7) * 0.7,
+    offsetX,
     accent,
   };
 }

@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 import type { PerchSpot } from "../objects/createBird";
 import { type CrowdMember, placeCharacter } from "../objects/createCharacter";
-import { createCentralBuilding, SKYLINE_PERCHES } from "../objects/createCentralBuilding";
+import { createCentralBuilding } from "../objects/createCentralBuilding";
 import { createGround } from "../objects/createGround";
 import { createGroundBillboard, groundBillboardPerchY } from "../objects/createGroundBillboard";
 import { createPanelMesh } from "../objects/createPanel";
@@ -103,7 +103,9 @@ export class SceneManager {
     // on one standing in mid-air.
     this.birdCall = createBirdCall();
     this.birds = new Birds({
-      perches: [...SKYLINE_PERCHES, signaturePerch],
+      // The signature sign is the only perch: every landing happens
+      // there, every other flight simply crosses.
+      perches: [signaturePerch],
       onEnterView: () => this.birdCall.play(),
     });
     this.scene.add(this.birds.group);
@@ -112,7 +114,10 @@ export class SceneManager {
     // has loaded, plus the signature sign, which lives outside its
     // roster — so they are merged here, where both are already known.
     this.livePanels = new LivePanels({
-      onCrowdChange: (members) => this.crowd.setMembers([...members, this.signatureMember]),
+      // The signature's own person is anchored: it belongs beside that
+      // sign, not in the crowd that follows the pointer.
+      onCrowdChange: (members) =>
+        this.crowd.setMembers([...members, { ...this.signatureMember, anchored: true }]),
     });
     this.scene.add(this.livePanels.group);
     this.postProcessing = createPostProcessing(this.renderer, this.scene, this.camera, width, height);
@@ -196,7 +201,7 @@ export class SceneManager {
     // through the live camera, so it must see this frame's zoom/pan.
     this.birds.update(delta, this.camera);
     this.pointer.update(delta);
-    this.crowd.update(delta, this.pointer.x);
+    this.crowd.update(delta, this.pointer.x, this.camera);
     this.emitViewChangeIfNeeded();
     this.postProcessing.render(this.timer.getElapsed(), this.cameraController.currentZoom);
 

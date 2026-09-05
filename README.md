@@ -209,12 +209,26 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
 - **1 panneau = 1 personnage** (`createCharacter.ts`, `Crowd.ts`) :
   chaque panneau acheté pose une personne de plus sur la place — la foule
   *est* le compteur de ventes, lisible d'un coup d'œil avant tout chiffre.
-  - **Ils marchent pour suivre le pointeur**, de gauche à droite. Le pas
-    avance avec la distance réellement parcourue et non avec le temps :
-    on s'arrête, les jambes s'arrêtent — c'est toute la différence entre
-    marcher et piétiner sur place. Bras à contre-balancier des jambes,
-    corps qui s'enfonce quand les jambes s'écartent, et chacun se tourne
-    vers là où il va.
+  - **Ils se rassemblent autour du pointeur.** Chacun a sa place fixe
+    dans le groupe, certains à sa gauche et d'autres à sa droite : un
+    pointeur qui part à droite envoie donc une partie de la foule à
+    droite et l'autre à gauche pour se remettre en place, au lieu de
+    faire glisser tout le monde en bloc. Le pointeur est converti en
+    position *monde*, pas en simple direction — et résolu à la profondeur
+    de chacun, puisque le même point à l'écran correspond à un x
+    différent selon qu'on est près ou loin de la caméra ; une seule
+    résolution pour toute la foule écarterait sa moitié lointaine du
+    curseur. Le centre du groupe s'arrête un peu avant le bord du cadre
+    (`POINTER_INSET`) : la foule se tient *autour* du curseur, donc un
+    centre poussé jusqu'au bord ferait sortir sa moitié extérieure de
+    l'écran.
+  - **Ils marchent** pour y aller. Le pas avance avec la distance
+    réellement parcourue et non avec le temps : on s'arrête, les jambes
+    s'arrêtent — c'est toute la différence entre marcher et piétiner sur
+    place. Bras à contre-balancier des jambes, corps qui s'enfonce quand
+    les jambes s'écartent, et chacun se tourne vers là où il va.
+  - Le personnage du panneau signature est **ancré** : il reste auprès de
+    son panneau et ignore le pointeur.
   - **Répartis en profondeur** sur quelques unités devant la rangée de
     panneaux, certains passant même derrière les poteaux : tous à la même
     profondeur, ce sont des découpes alignées ; étalés, ils se recouvrent
@@ -335,9 +349,9 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
   - **La formation change d'un vol à l'autre** — deux de front avec un
     troisième qui suit un peu en arrière et en dessous, un V, une paire
     seule, une file décalée. Formation, altitude, profondeur, vitesse,
-    sens, durée d'attente et perchoir sont des cycles de longueurs
-    différentes (4, 3, 5, 3, 2, 3, 9), donc il faut très longtemps pour
-    revoir la même combinaison : varié sans aléatoire, et une capture du
+    sens et durée d'attente sont des cycles de longueurs différentes
+    (4, 3, 5, 3, 2, 3), donc il faut très longtemps pour revoir la même
+    combinaison : varié sans aléatoire, et une capture du
     vol N reste reproductible.
   - **Un vol sur trois vient se poser** au lieu de traverser : approche
     en piqué qui décélère sur le perchoir (interpolation *ease-out*, nez
@@ -353,27 +367,20 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
     plus que la trajectoire, qui rend un atterrissage nerveux. Ramené
     tout près de la cadence de croisière, phases allongées, et ailes
     repliées plus serré une fois posés.
-  - Les perchoirs sont **dérivés de la scène** et non listés à la main
-    (`SKYLINE_PERCHES` dans `createCentralBuilding.ts`,
-    `groundBillboardPerchY` dans `createGroundBillboard.ts`) : bord avant
-    de chaque toit, arête supérieure de chaque écran à plat — l'image du
-    corbeau sur le panneau — et le haut du panneau signature "ROBY".
-    Déplacer une tour ou redimensionner un écran déplace le perchoir
-    avec, au lieu de laisser discrètement des oiseaux debout dans le
-    vide. Le support `crown` est exclu : il est incliné vers l'arrière,
-    un oiseau s'y tiendrait visiblement de travers.
-  - **"ROBY" est le seul panneau au sol de la liste**, et c'est délibéré :
-    c'est le seul qui soit permanent. Tous les autres apparaissent et
+  - **Le panneau signature "ROBY" est le seul perchoir** : tous les
+    autres vols ne font que traverser. Sa hauteur de perchoir est dérivée
+    des constantes qui dessinent la structure (`groundBillboardPerchY`)
+    et sa taille lue sur le mesh réellement construit, donc le perchoir
+    ne peut pas dériver de ce sur quoi il repose. C'est aussi le seul
+    panneau au sol qui pourrait l'être : tous les autres apparaissent et
     disparaissent avec le refetch LOD (voir `LivePanels`), ce qui
-    laisserait un oiseau posé dessus debout dans le vide. Il arrive à son
-    tour dans le cycle, une fois sur dix — et comme il se tient à x=-15,
-    il faut dézoomer ou se déplacer pour le voir.
-  - `SceneManager` assemble la liste et la passe au vol, plutôt que
-    `Birds` n'aille la chercher : le vol n'a pas à savoir de quoi la
-    scène est faite. Les deux bouts d'un vol posé sont d'ailleurs mesurés
+    laisserait un oiseau posé dessus debout dans le vide.
+  - `SceneManager` assemble la liste des perchoirs et la passe au vol,
+    plutôt que `Birds` n'aille la chercher : le vol n'a pas à savoir de
+    quoi la scène est faite. Les deux bouts d'un vol posé sont mesurés
     *depuis le perchoir* et non depuis des points fixes du monde — un
-    point d'entrée absolu ne marche que tant que tous les perchoirs sont
-    près du centre, et envoyait le vol à reculons vers "ROBY".
+    point d'entrée absolu ne marche que tant que les perchoirs sont près
+    du centre, et envoyait le vol à reculons vers "ROBY", excentré.
   - Le cycle des perchoirs est indexé par un compteur d'atterrissages et
     non par le numéro de vol : indexé par le vol, il ne marchait que par
     l'accident que 3 (un vol sur trois) et le nombre de perchoirs étaient

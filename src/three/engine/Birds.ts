@@ -120,10 +120,10 @@ type Phase = "waiting" | "crossing" | "approach" | "perched" | "departure";
 
 export interface BirdsOptions {
   /**
-   * Everywhere the flock may land. Passed in rather than imported so the
-   * flock doesn't need to know what the scene is made of — the caller
-   * assembles the skyline's perches and the signature sign's into one
-   * list (see SceneManager).
+   * Everywhere the flock may land — today just the signature sign, by
+   * design: every other flight crosses without stopping. Passed in
+   * rather than imported so the flock doesn't need to know what the
+   * scene is made of (see SceneManager).
    */
   perches: PerchSpot[];
   /**
@@ -157,11 +157,12 @@ export class Birds {
 
   private flightIndex = 0;
   /**
-   * Counts landings only, so perches cycle 0, 1, 2, … in order. Indexing
-   * them by `flightIndex` instead worked only by the accident that 3
-   * (PERCH_EVERY) and the perch count happened to be coprime: change
-   * either — add one perch, land more often — and the flock would loop
-   * over a subset of them forever, never visiting the rest.
+   * Counts landings only, so perches cycle 0, 1, 2, … in order. There is
+   * only one perch today (the signature sign), but indexing by
+   * `flightIndex` instead worked only by the accident that 3
+   * (PERCH_EVERY) and the perch count happened to be coprime: add a
+   * second perch back and that version would loop over a subset of them
+   * forever, never visiting the rest.
    */
   private landingIndex = 0;
   private phase: Phase = "waiting";
