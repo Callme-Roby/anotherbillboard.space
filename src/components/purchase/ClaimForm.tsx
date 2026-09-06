@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
+import { PANEL_CATEGORIES } from "@/lib/categories";
+
 import type { PublicPanel } from "@/lib/api/serializePanel";
 
 type Status = "idle" | "loading" | "success" | "error";
@@ -18,11 +20,27 @@ const CARD_CLASSES =
  * Submits to POST /api/panels/claim, which scrapes the URL, places, and
  * broadcasts the panel.
  */
+/**
+ * Display names for the category values, which are stored lowercase and
+ * unaccented (they are also filter keys, see lib/categories.ts).
+ */
+const CATEGORY_LABELS: Record<(typeof PANEL_CATEGORIES)[number], string> = {
+  agence: "Agence",
+  design: "Design",
+  marketing: "Marketing",
+  dev: "Développement",
+  photo: "Photo",
+  autre: "Autre",
+};
+
 export function ClaimForm() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
 
   const [url, setUrl] = useState("");
+  // Defaults to the catch-all rather than to a real category, so a buyer
+  // who never touches the field isn't silently filed under "agence".
+  const [category, setCategory] = useState<string>("autre");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState<PublicPanel | null>(null);
@@ -47,7 +65,7 @@ export function ClaimForm() {
       const response = await fetch("/api/panels/claim", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sessionId, url }),
+        body: JSON.stringify({ sessionId, url, category }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -80,7 +98,9 @@ export function ClaimForm() {
     <form onSubmit={handleSubmit} className={`${CARD_CLASSES} space-y-4`}>
       <div>
         <h1 className="text-base font-semibold text-white">Paiement confirmé ✓</h1>
-        <p className="mt-1 text-sm text-white/60">Dernière étape : l&rsquo;URL de votre site.</p>
+        <p className="mt-1 text-sm text-white/60">
+          Dernière étape : l&rsquo;URL de votre site et votre catégorie.
+        </p>
       </div>
 
       <label className="block">
@@ -93,6 +113,21 @@ export function ClaimForm() {
           placeholder="https://votresite.com"
           className="w-full rounded border border-white/20 bg-black/40 px-2 py-2.5 text-base text-white outline-none focus:border-white/50"
         />
+      </label>
+
+      <label className="block">
+        <span className="mb-1 block text-sm text-white/60">Catégorie</span>
+        <select
+          value={category}
+          onChange={(event) => setCategory(event.target.value)}
+          className="w-full rounded border border-white/20 bg-black/40 px-2 py-2.5 text-base text-white outline-none focus:border-white/50"
+        >
+          {PANEL_CATEGORIES.map((value) => (
+            <option key={value} value={value} className="bg-black text-white">
+              {CATEGORY_LABELS[value]}
+            </option>
+          ))}
+        </select>
       </label>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}

@@ -78,6 +78,8 @@ export async function finalizePanel(
     description: string | null;
     faviconUrl: string | null;
     dominantColor: string;
+    /** Buyer-chosen, validated against PANEL_CATEGORIES by the claim route. */
+    category: string;
     positionX: number;
     positionY: number;
     size: number;

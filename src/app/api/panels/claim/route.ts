@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { serializePanel } from "@/lib/api/serializePanel";
+import { PANEL_CATEGORIES } from "@/lib/categories";
 import { finalizePanel, findPanelBySessionId, getGroundPanelsForPlacement } from "@/lib/db/queries/panels";
 import { sizeFromAmountCents } from "@/lib/economy";
 import { findGroundPlacement } from "@/lib/placement";
@@ -13,6 +14,11 @@ import { scrapeSite } from "@/lib/scrape";
 const ClaimRequestSchema = z.object({
   sessionId: z.string().min(1),
   url: z.url(),
+  // Constrained to the known list even though the column is free text
+  // (see lib/categories.ts): the column stays open so adding a category
+  // never needs a migration, but what the funnel writes into it should
+  // still be one of the values the filter UI can offer back.
+  category: z.enum(PANEL_CATEGORIES),
 });
 
 /**
@@ -32,7 +38,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request", details: parsed.error.flatten() }, { status: 400 });
   }
-  const { sessionId, url } = parsed.data;
+  const { sessionId, url, category } = parsed.data;
 
   const panel = await waitForPanel(sessionId);
   if (!panel) {
@@ -61,6 +67,7 @@ export async function POST(request: NextRequest) {
     description: scraped.description,
     faviconUrl: scraped.faviconUrl,
     dominantColor: scraped.dominantColor,
+    category,
     positionX,
     positionY,
     size,
