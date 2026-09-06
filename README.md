@@ -48,6 +48,38 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
 | `npm run db:push`        | Pousse le schéma directement sur la base (dev rapide)    |
 | `npm run db:studio`      | UI d'inspection de la base (Drizzle Studio)              |
 | `npm run db:seed`        | Peuple `buildings` (bâtiment central + paliers) — idempotent, ne fait rien si déjà peuplée |
+| `npm test`               | Suite hors-ligne du tunnel d'achat (Postgres embarqué, voir plus bas) |
+
+## Tests du tunnel d'achat (hors-ligne)
+
+`npm test` fait tourner toute la chaîne de paiement **sans réseau et sans
+compte** : signature du webhook, idempotence, scraping, placement,
+persistance. C'est la seule façon d'exercer ces chemins avant d'avoir une
+base et des clés — et ce sont précisément ceux où un bug coûte un vrai
+paiement.
+
+- **Postgres embarqué** (PGlite, un vrai Postgres compilé en WASM) plutôt
+  qu'un mock : le schéma, les contraintes et les codes d'erreur sur
+  lesquels le code branche sont les vrais. Les migrations appliquées sont
+  celles du dossier `drizzle/`, donc la base de test est construite par
+  exactement le SQL qui construira celle de production.
+- **Signatures Stripe authentiques** : le SDK sait signer et vérifier
+  hors-ligne (`generateTestHeaderString`), et le webhook ne lit que
+  l'événement qu'on lui poste — il n'appelle jamais l'API. Le code qui
+  tourne dans le test est donc celui qui tournera en production, rejet
+  des signatures forgées compris.
+- **Le scraping fait un vrai fetch**, d'une page servie en local : c'est
+  l'analyse de production qui est exercée, pas un stub.
+- `src/lib/db/client.ts` expose pour cela une couture
+  (`__setDatabaseForTests`), refusée hors `NODE_ENV=test`. Le client `db`
+  résout la base à chaque accès de propriété, et non une fois pour
+  toutes : un test doit pouvoir l'installer après que les modules
+  l'ayant importé ont été évalués — ce qui, les imports étant hissés, est
+  toujours le cas.
+- Ce que cela ne prouve pas : l'atomicité de `batch` chez Neon. Ce
+  driver est le seul à l'exposer, donc le harnais le remplace par une
+  vraie transaction — garantie plutôt plus forte, mais c'est *notre*
+  logique qui est vérifiée, pas celle de Neon.
 
 ## Mise en ligne
 
