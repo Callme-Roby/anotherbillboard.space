@@ -23,29 +23,55 @@ export interface BirdCall {
  * Browsers refuse to start audio before the user has interacted with the
  * page, so the context is created on the first real gesture and every
  * call before that is simply dropped — a chirp is ambience, never worth
- * warning about or retrying. `play()` is likewise a no-op if the context
- * isn't running (a background tab suspends it), so nothing queues up to
- * fire in a burst when the tab comes back.
+ * warning about or retrying.
+ *
+ * Every gesture retries, rather than only the first. A context created
+ * during a gesture is not guaranteed to end up *running*: mobile
+ * browsers routinely hand back a suspended one, and any browser suspends
+ * it when the page goes to the background and leaves it suspended on
+ * return. The original one-shot version created the context on the first
+ * touch, and if that one came back suspended nothing ever tried again —
+ * so the birds were silent on mobile for the rest of the visit while
+ * working on the first click on desktop.
  */
 export function createBirdCall(): BirdCall {
   let context: AudioContext | null = null;
   let disposed = false;
 
   const unlock = () => {
-    if (disposed || context) return;
+    if (disposed) return;
     if (typeof window.AudioContext !== "function") return;
-    context = new window.AudioContext();
-    void context.resume().catch(() => {});
+    if (!context) context = new window.AudioContext();
+    // Cheap and safe to call on an already-running context.
+    if (context.state !== "running") void context.resume().catch(() => {});
   };
 
-  const events = ["pointerdown", "touchstart", "keydown"] as const;
+  // touchend/click as well as the down events: on mobile the reliable
+  // activation point is the end of a tap, not its beginning — a touch
+  // that turns into a pan or a pinch (which is most of them here, see
+  // CameraController) may never settle into the tap the browser counts
+  // as a deliberate interaction.
+  const events = ["pointerdown", "touchstart", "touchend", "click", "keydown"] as const;
   for (const event of events) {
     window.addEventListener(event, unlock, { passive: true });
   }
 
+  // Coming back to a backgrounded tab needs no fresh gesture — the
+  // earlier activation still counts — but it does need someone to ask.
+  const handleVisibility = () => {
+    if (document.visibilityState === "visible") unlock();
+  };
+  document.addEventListener("visibilitychange", handleVisibility);
+
   return {
     play: () => {
-      if (!context || context.state !== "running") return;
+      if (!context) return;
+      if (context.state !== "running") {
+        // Nudge it, and let the next flock be the one that's heard
+        // rather than firing into a suspended context.
+        void context.resume().catch(() => {});
+        return;
+      }
       const start = context.currentTime;
       // Two notes a beat apart, the second a touch higher — "cui-cui".
       chirp(context, start, BASE_FREQUENCY_HZ * detune());
@@ -54,6 +80,7 @@ export function createBirdCall(): BirdCall {
     dispose: () => {
       disposed = true;
       for (const event of events) window.removeEventListener(event, unlock);
+      document.removeEventListener("visibilitychange", handleVisibility);
       void context?.close().catch(() => {});
       context = null;
     },

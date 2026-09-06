@@ -456,6 +456,21 @@ silencieusement contre la chaîne de connexion de repli.
     simplement ignoré — un pépiement n'est jamais une raison d'avertir ou
     de réessayer. Vérifié : aucun `AudioContext` avant le clic, un appel
     (= deux chirps) à l'entrée du vol dans le cadre.
+  - **Chaque geste réessaie**, pas seulement le premier, et un appel qui
+    tombe sur un contexte suspendu le relance avant de renoncer. Un
+    contexte créé pendant un geste n'est pas garanti *running* : les
+    navigateurs mobiles en rendent couramment un suspendu, et n'importe
+    lequel le suspend quand la page passe en arrière-plan sans le
+    reprendre au retour. La version précédente, à usage unique, créait le
+    contexte au premier toucher et ne retentait plus jamais — les oiseaux
+    restaient donc muets sur mobile pour toute la visite tout en
+    fonctionnant au premier clic sur desktop. Les événements d'écoute
+    incluent `touchend` et `click` : sur mobile le point d'activation
+    fiable est la fin d'un tap, pas son début, un toucher se transformant
+    le plus souvent ici en glissé ou en pincement.
+  - Reste hors de portée du code : sur iPhone, l'interrupteur silencieux
+    matériel coupe le Web Audio quel que soit le code. Le contournement
+    connu est de passer par un élément `<audio>`, non fait ici.
   - Deux détails sont venus de l'écran. Les oiseaux volaient d'abord à
     mi-hauteur des tours et passaient donc l'essentiel d'une traversée
     *derrière* elles ; remontés au niveau des toits. Et à l'échelle
