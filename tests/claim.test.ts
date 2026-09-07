@@ -109,6 +109,30 @@ describe("claiming a panel", () => {
     assert.equal(response.status, 400);
   });
 
+  it("refuses a URL that points inside the infrastructure", async () => {
+    await pendingPanel("cs_claim_ssrf");
+
+    // The rest of this file scrapes loopback on purpose, which the
+    // guard waives under NODE_ENV=test; closing that door here is what
+    // makes this the production code path. The panel must come back
+    // untouched — refused before anything is scraped or written.
+    process.env.SCRAPE_ENFORCE_PUBLIC_HOSTS = "1";
+    try {
+      const response = await claim({
+        sessionId: "cs_claim_ssrf",
+        url: "http://169.254.169.254/latest/meta-data/",
+        category: "other",
+      });
+      assert.equal(response.status, 400);
+    } finally {
+      delete process.env.SCRAPE_ENFORCE_PUBLIC_HOSTS;
+    }
+
+    const retried = await claim({ sessionId: "cs_claim_ssrf", url: siteUrl, category: "other" });
+    const { panel } = await retried.json();
+    assert.equal(panel.url, siteUrl, "the refused URL must not have been stored");
+  });
+
   it("refuses a session with no paid panel behind it", async () => {
     const response = await claim({ sessionId: "cs_never_paid", url: siteUrl, category: "other" });
     assert.equal(response.status, 404);

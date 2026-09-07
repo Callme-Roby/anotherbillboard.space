@@ -70,6 +70,14 @@ paiement.
   des signatures forgées compris.
 - **Le scraping fait un vrai fetch**, d'une page servie en local : c'est
   l'analyse de production qui est exercée, pas un stub.
+- **La garde anti-SSRF est testée telle qu'elle tourne en production**
+  (`tests/publicUrl.test.ts`). Elle laisse passer la boucle locale sous
+  `NODE_ENV=test`, sans quoi le reste de la suite ne pourrait rien
+  scraper ; `SCRAPE_ENFORCE_PUBLIC_HOSTS=1` referme cette porte, et c'est
+  sous ce drapeau que sont vérifiés les schémas refusés, les plages
+  privées, l'IPv6, et le refus d'une redirection qui sort de `http(s)`.
+  `tests/claim.test.ts` fait de même sur la route complète : une URL
+  pointant vers l'endpoint de métadonnées repart en 400 sans rien écrire.
 - `src/lib/db/client.ts` expose pour cela une couture
   (`__setDatabaseForTests`), refusée hors `NODE_ENV=test`. Le client `db`
   résout la base à chaque accès de propriété, et non une fois pour
@@ -677,6 +685,34 @@ du bâtiment central (top 4 par montant, calculé en direct).
 - Scraping défensif : timeout + plafond d'octets sur chaque fetch externe
   (`src/lib/scrape/fetchWithLimits.ts`), extraction de couleur avec son
   propre timeout et repli sur une couleur neutre.
+- **Anti-SSRF sur l'URL de l'acheteur** (`src/lib/scrape/publicUrl.ts`).
+  C'est le point sensible du tunnel : n'importe qui payant le montant
+  minimum obtient que le serveur aille chercher une URL de son choix,
+  *depuis l'intérieur* du déploiement. Sans garde-fou, `/api/panels/claim`
+  est un proxy de requêtes vers tout ce que la fonction peut joindre
+  (endpoint de métadonnées cloud, base, APIs internes), la réponse
+  ressortant par le titre/description scrapés.
+  - Schéma limité à `http(s)` — pas de `file:`, `data:`, `gopher:` — et
+    identifiants dans l'URL refusés
+    (`https://site-de-confiance@169.254.169.254/`).
+  - Chaque adresse résolue doit être publique : boucle locale, RFC1918,
+    CGNAT, link-local (dont `169.254.169.254`), multicast, réservées, et
+    leurs équivalents IPv6 (`fc00::/7`, `fe80::/10`, Teredo) — y compris
+    la forme IPv4-mappée `::ffff:127.0.0.1`. *Toutes* les adresses du
+    nom, pas seulement la première : un nom avec un A public et un AAAA
+    en boucle locale est une tentative de rebinding.
+  - **Les redirections sont suivies à la main**, hop par hop, chacun
+    revalidé. C'est ce qui fait la différence entre une garde réelle et
+    une garde cosmétique : un hôte parfaitement public peut répondre
+    `302 Location: http://169.254.169.254/`.
+  - Le refus renvoyé à l'acheteur reste volontairement vague — détailler
+    la raison transformerait le formulaire en sonde du réseau privé.
+  - Risque résiduel assumé : un enregistrement DNS qui bascule entre la
+    vérification et la connexion. Le fermer demande d'épingler la
+    connexion sur l'adresse validée (`lookup` custom sur un dispatcher
+    undici), ce que le `fetch` patché de Next ne transporte pas de façon
+    fiable ; la fenêtre est étroite et le gain borné par le plafond
+    d'octets.
 - Webhook Stripe : signature vérifiée avant tout traitement, idempotence
   par événement (voir plus haut).
 

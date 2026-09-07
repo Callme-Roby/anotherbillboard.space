@@ -10,6 +10,7 @@ import { findGroundPlacement } from "@/lib/placement";
 import { broadcastToPlaza } from "@/lib/pusher/server";
 import { PanelEvent } from "@/lib/realtime";
 import { scrapeSite } from "@/lib/scrape";
+import { assertPublicUrl, BlockedUrlError } from "@/lib/scrape/publicUrl";
 
 const ClaimRequestSchema = z.object({
   sessionId: z.string().min(1),
@@ -54,6 +55,25 @@ export async function POST(request: NextRequest) {
   // Already claimed (page refresh / double submit) — idempotent no-op.
   if (panel.positionX !== null) {
     return NextResponse.json({ panel: serializePanel(panel) });
+  }
+
+  // `z.url()` only proves the string parses. What actually gets fetched
+  // — from inside the deployment, with whatever network the platform
+  // grants it — has to be a public http(s) address, so the check happens
+  // here, before anything is scraped or written. The refusal stays
+  // deliberately vague: naming the reason would let a buyer use the
+  // funnel to map the private network.
+  try {
+    await assertPublicUrl(url);
+  } catch (error) {
+    if (error instanceof BlockedUrlError) {
+      console.warn("[claim] refused URL", error.message);
+      return NextResponse.json(
+        { error: "Cette URL ne peut pas être utilisée — indiquez l'adresse publique de votre site (https://…)." },
+        { status: 400 },
+      );
+    }
+    throw error;
   }
 
   const scraped = await scrapeSite(url);
