@@ -74,7 +74,7 @@ describe("claiming a panel", () => {
     const response = await claim({
       sessionId: "cs_claim_ok",
       url: siteUrl,
-      category: "design",
+      category: "design-creative",
     });
     assert.equal(response.status, 200);
 
@@ -84,7 +84,7 @@ describe("claiming a panel", () => {
     assert.equal(panel.description, "Agence de design et de stratégie de marque");
     // The category is settled here, and only here — the purchase step
     // deliberately no longer asks for it.
-    assert.equal(panel.category, "design");
+    assert.equal(panel.category, "design-creative");
     // Placed and sized: this is what makes it show up in the scene.
     assert.equal(typeof panel.positionX, "number");
     assert.equal(typeof panel.positionY, "number");
@@ -105,20 +105,20 @@ describe("claiming a panel", () => {
   it("rejects a malformed URL", async () => {
     await pendingPanel("cs_claim_bad_url");
 
-    const response = await claim({ sessionId: "cs_claim_bad_url", url: "pas-une-url", category: "autre" });
+    const response = await claim({ sessionId: "cs_claim_bad_url", url: "pas-une-url", category: "other" });
     assert.equal(response.status, 400);
   });
 
   it("refuses a session with no paid panel behind it", async () => {
-    const response = await claim({ sessionId: "cs_never_paid", url: siteUrl, category: "autre" });
+    const response = await claim({ sessionId: "cs_never_paid", url: siteUrl, category: "other" });
     assert.equal(response.status, 404);
   });
 
   it("is idempotent — a refresh returns the same panel, not a second one", async () => {
     await pendingPanel("cs_claim_twice");
 
-    const first = await (await claim({ sessionId: "cs_claim_twice", url: siteUrl, category: "photo" })).json();
-    const second = await (await claim({ sessionId: "cs_claim_twice", url: siteUrl, category: "photo" })).json();
+    const first = await (await claim({ sessionId: "cs_claim_twice", url: siteUrl, category: "media-news" })).json();
+    const second = await (await claim({ sessionId: "cs_claim_twice", url: siteUrl, category: "media-news" })).json();
 
     assert.equal(first.panel.id, second.panel.id);
     assert.equal(second.panel.positionX, first.panel.positionX);
@@ -128,8 +128,8 @@ describe("claiming a panel", () => {
     await pendingPanel("cs_place_a", 20000);
     await pendingPanel("cs_place_b", 20000);
 
-    const a = (await (await claim({ sessionId: "cs_place_a", url: siteUrl, category: "autre" })).json()).panel;
-    const b = (await (await claim({ sessionId: "cs_place_b", url: siteUrl, category: "autre" })).json()).panel;
+    const a = (await (await claim({ sessionId: "cs_place_a", url: siteUrl, category: "other" })).json()).panel;
+    const b = (await (await claim({ sessionId: "cs_place_b", url: siteUrl, category: "other" })).json()).panel;
 
     const distance = Math.hypot(a.positionX - b.positionX, a.positionY - b.positionY);
     // Panels collide as bounding circles of half their *width*; two

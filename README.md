@@ -125,12 +125,22 @@ devant le paiement un champ dont rien n'a besoin avant. Un panneau est
 de toute façon invisible tant qu'il n'est pas réclamé, donc il n'y a rien
 à catégoriser plus tôt.
 
-Elle est contrainte à la liste connue (`lib/categories.ts`) côté route,
-alors que la colonne reste du texte libre : la colonne ouverte évite une
-migration à chaque nouvelle catégorie, mais ce que le tunnel y écrit doit
-rester une valeur que le filtre saura reproposer. Le défaut est « autre »
-plutôt que la première de la liste, pour ne pas classer d'office en
-« agence » un acheteur qui n'a pas touché au champ.
+Elle est contrainte à la liste connue (`lib/categories.ts`, 28 entrées)
+côté route, alors que la colonne reste du texte libre : la colonne
+ouverte évite une migration à chaque nouvelle catégorie, mais ce que le
+tunnel y écrit doit rester une valeur que le filtre saura reproposer. Le
+défaut est « Other » plutôt que la première de la liste, pour ne pas
+classer d'office un acheteur qui n'a pas touché au champ.
+
+Ce qui est stocké et ce qui circule dans `?category=…` sont des
+identifiants en slug, pas les libellés : un slug survit à une
+reformulation du libellé, et une chaîne de requête n'est pas un endroit
+pour « Crypto, Web3 & Investing ». Les deux listes sont déclarées
+séparément à dessein — les identifiants doivent rester un tuple littéral
+pour que `z.enum` valide contre les vraies valeurs, et typer les
+libellés en `Record<PanelCategory, string>` fait refuser par TypeScript
+tout identifiant ajouté sans libellé. Les deux ne peuvent donc pas
+diverger.
 
 Note : `drizzle-kit` et le seed ne lisent aucun fichier d'environnement
 d'eux-mêmes ; ils passent par `loadEnvConfig` de Next (voir

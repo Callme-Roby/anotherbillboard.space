@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
-import { PANEL_CATEGORIES } from "@/lib/categories";
+import { FALLBACK_CATEGORY, PANEL_CATEGORIES, PANEL_CATEGORY_LABELS } from "@/lib/categories";
 
 import type { PublicPanel } from "@/lib/api/serializePanel";
 
@@ -20,27 +20,15 @@ const CARD_CLASSES =
  * Submits to POST /api/panels/claim, which scrapes the URL, places, and
  * broadcasts the panel.
  */
-/**
- * Display names for the category values, which are stored lowercase and
- * unaccented (they are also filter keys, see lib/categories.ts).
- */
-const CATEGORY_LABELS: Record<(typeof PANEL_CATEGORIES)[number], string> = {
-  agence: "Agence",
-  design: "Design",
-  marketing: "Marketing",
-  dev: "Développement",
-  photo: "Photo",
-  autre: "Autre",
-};
-
 export function ClaimForm() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
 
   const [url, setUrl] = useState("");
-  // Defaults to the catch-all rather than to a real category, so a buyer
-  // who never touches the field isn't silently filed under "agence".
-  const [category, setCategory] = useState<string>("autre");
+  // Defaults to the catch-all rather than to the first of the list, so a
+  // buyer who never touches the field isn't silently filed under
+  // whatever happens to sit at the top of it.
+  const [category, setCategory] = useState<string>(FALLBACK_CATEGORY);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState<PublicPanel | null>(null);
@@ -124,7 +112,7 @@ export function ClaimForm() {
         >
           {PANEL_CATEGORIES.map((value) => (
             <option key={value} value={value} className="bg-black text-white">
-              {CATEGORY_LABELS[value]}
+              {PANEL_CATEGORY_LABELS[value]}
             </option>
           ))}
         </select>
