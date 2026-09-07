@@ -74,7 +74,7 @@ describe("stripe webhook", () => {
         eventId: "evt_hook_new",
         sessionId: "cs_hook_new",
         amountTotal: 12500,
-        metadata: { type: "new_panel", category: "marketing", ownerEmail: "a@b.fr" },
+        metadata: { type: "new_panel", ownerEmail: "a@b.fr" },
       }),
     );
     assert.equal(response.status, 200);
@@ -82,8 +82,9 @@ describe("stripe webhook", () => {
     const panel = await findPanelBySessionId("cs_hook_new");
     assert.ok(panel, "the delivery should have created a panel");
     assert.equal(panel.amount, 12500);
-    assert.equal(panel.category, "marketing");
     assert.equal(panel.ownerEmail, "a@b.fr");
+    // Pending panels carry no category: it is chosen at the claim step.
+    assert.equal(panel.category, null);
   });
 
   it("rejects a forged signature", async () => {
@@ -106,20 +107,6 @@ describe("stripe webhook", () => {
     const panel = await findPanelBySessionId("cs_replay");
     assert.ok(panel);
     assert.equal(panel.amount, 5000, "the amount must not have been applied twice");
-  });
-
-  it("files an unknown category as none rather than inventing one", async () => {
-    await deliver(
-      checkoutCompleted({
-        eventId: "evt_bad_cat",
-        sessionId: "cs_bad_cat",
-        metadata: { type: "new_panel", category: "ni-connue-ni-valide" },
-      }),
-    );
-
-    const panel = await findPanelBySessionId("cs_bad_cat");
-    assert.ok(panel);
-    assert.equal(panel.category, null);
   });
 
   it("ignores event types it does not handle", async () => {

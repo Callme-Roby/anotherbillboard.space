@@ -116,16 +116,21 @@ préférence — chaque étape a besoin de la précédente.
 7. **Pusher** (temps réel) et **Resend** (email) ensuite, puis le nom de
    domaine.
 
-Le formulaire de claim (`/panneau/nouveau`) collecte l'URL **et la
-catégorie** ; la catégorie était jusqu'ici absente du tunnel alors que la
-colonne, son index et le filtre de `GET /api/panels` existaient déjà —
-rien ne l'écrivait. Elle est contrainte à la liste connue
-(`lib/categories.ts`) côté route, alors que la colonne reste du texte
-libre : la colonne ouverte évite une migration à chaque nouvelle
-catégorie, mais ce que le tunnel y écrit doit rester une valeur que le
-filtre saura reproposer. Le défaut est « autre » plutôt que la première
-de la liste, pour ne pas classer d'office en « agence » un acheteur qui
-n'a pas touché au champ.
+La **catégorie se choisit au claim** (`/panneau/nouveau`), avec l'URL à
+laquelle elle appartient — et à cet endroit seulement. Elle était
+auparavant demandée avant paiement, dans la modal, puis transmise par les
+métadonnées Stripe ; la demander aux deux endroits faisait écraser en
+silence le choix d'avant-paiement par le défaut du claim, et mettait
+devant le paiement un champ dont rien n'a besoin avant. Un panneau est
+de toute façon invisible tant qu'il n'est pas réclamé, donc il n'y a rien
+à catégoriser plus tôt.
+
+Elle est contrainte à la liste connue (`lib/categories.ts`) côté route,
+alors que la colonne reste du texte libre : la colonne ouverte évite une
+migration à chaque nouvelle catégorie, mais ce que le tunnel y écrit doit
+rester une valeur que le filtre saura reproposer. Le défaut est « autre »
+plutôt que la première de la liste, pour ne pas classer d'office en
+« agence » un acheteur qui n'a pas touché au champ.
 
 Note : `drizzle-kit` et le seed ne lisent aucun fichier d'environnement
 d'eux-mêmes ; ils passent par `loadEnvConfig` de Next (voir

@@ -2,14 +2,12 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { PANEL_CATEGORIES } from "@/lib/categories";
 import { MIN_PURCHASE_AMOUNT_CENTS } from "@/lib/economy";
 import { createNewPanelCheckoutSession } from "@/lib/stripe/checkout";
 
 const CheckoutRequestSchema = z
   .object({
     amountCents: z.number().int().min(MIN_PURCHASE_AMOUNT_CENTS),
-    category: z.enum(PANEL_CATEGORIES).optional(),
     ownerEmail: z.email().optional(),
     notifyOnOutgrown: z.boolean().optional().default(false),
   })
@@ -38,7 +36,6 @@ export async function POST(request: NextRequest) {
     const { url } = await createNewPanelCheckoutSession({
       amountCents: parsed.data.amountCents,
       origin: request.nextUrl.origin,
-      category: parsed.data.category,
       ownerEmail: parsed.data.ownerEmail,
       notifyOnOutgrown: parsed.data.notifyOnOutgrown,
     });

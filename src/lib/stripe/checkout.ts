@@ -43,7 +43,6 @@ async function createCheckoutSession(params: {
 export async function createNewPanelCheckoutSession(params: {
   amountCents: number;
   origin: string;
-  category?: string;
   ownerEmail?: string;
   notifyOnOutgrown: boolean;
 }): Promise<CreateCheckoutSessionResult> {
@@ -52,7 +51,6 @@ export async function createNewPanelCheckoutSession(params: {
     productName: "Panneau publicitaire — Another Billboard",
     metadata: {
       type: "new_panel",
-      category: params.category ?? "",
       ownerEmail: params.ownerEmail ?? "",
       notifyOnOutgrown: String(params.notifyOnOutgrown),
     },

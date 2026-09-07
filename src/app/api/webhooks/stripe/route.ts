@@ -3,7 +3,6 @@ import type { NextRequest } from "next/server";
 import type Stripe from "stripe";
 
 import { serializePanel } from "@/lib/api/serializePanel";
-import { isKnownCategory } from "@/lib/categories";
 import {
   boostPanelIdempotent,
   createPendingPanelIdempotent,
@@ -87,14 +86,15 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleNewPanel(eventId: string, session: Stripe.Checkout.Session, amountCents: number) {
-  const rawCategory = session.metadata?.category ?? "";
-  const category = isKnownCategory(rawCategory) ? rawCategory : null;
+  // No category yet: it is chosen at the claim step, with the URL (see
+  // POST /api/panels/claim). A panel is invisible until claimed anyway,
+  // so there is nothing to categorise before then.
   const ownerEmail = session.metadata?.ownerEmail || null;
   const notifyOnOutgrown = session.metadata?.notifyOnOutgrown === "true";
 
   const panel = await createPendingPanelIdempotent(eventId, {
     amountCents,
-    category,
+    category: null,
     ownerEmail,
     notifyOnOutgrown,
     stripeCheckoutSessionId: session.id,

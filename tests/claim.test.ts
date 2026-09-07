@@ -82,6 +82,8 @@ describe("claiming a panel", () => {
     assert.equal(panel.url, siteUrl);
     assert.equal(panel.title, "Studio Marceau");
     assert.equal(panel.description, "Agence de design et de stratégie de marque");
+    // The category is settled here, and only here — the purchase step
+    // deliberately no longer asks for it.
     assert.equal(panel.category, "design");
     // Placed and sized: this is what makes it show up in the scene.
     assert.equal(typeof panel.positionX, "number");

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 
-import { PANEL_CATEGORIES } from "@/lib/categories";
 import { MIN_PURCHASE_AMOUNT_CENTS } from "@/lib/economy";
 
 const MIN_AMOUNT_EUROS = MIN_PURCHASE_AMOUNT_CENTS / 100;
@@ -21,10 +20,15 @@ interface PurchaseModalProps {
  * Triggered from a plain button rather than clicking a spot in the 3D
  * scene for now: raycasting onto specific empty ground/building slots
  * is a separate, sizeable piece of interaction work — see README.
+ *
+ * Deliberately does *not* ask for the category: it is settled at the
+ * claim step, alongside the URL it belongs with (see ClaimForm). Asking
+ * in both places meant the claim's answer silently overwrote this one,
+ * and it put a field in front of the payment that nothing needs until
+ * after it.
  */
 export function PurchaseModal({ onClose }: PurchaseModalProps) {
   const [amountEuros, setAmountEuros] = useState(String(DEFAULT_AMOUNT_EUROS));
-  const [category, setCategory] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [notifyOnOutgrown, setNotifyOnOutgrown] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -51,7 +55,6 @@ export function PurchaseModal({ onClose }: PurchaseModalProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           amountCents,
-          category: category || undefined,
           ownerEmail: ownerEmail || undefined,
           notifyOnOutgrown,
         }),
@@ -99,22 +102,6 @@ export function PurchaseModal({ onClose }: PurchaseModalProps) {
               onChange={(event) => setAmountEuros(event.target.value)}
               className="w-full rounded border border-white/20 bg-black/40 px-2 py-2.5 text-base text-white outline-none focus:border-white/50"
             />
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-white/60">Catégorie</span>
-            <select
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              className="w-full rounded border border-white/20 bg-black/40 px-2 py-2.5 text-base text-white outline-none focus:border-white/50"
-            >
-              <option value="">—</option>
-              {PANEL_CATEGORIES.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
           </label>
 
           <label className="block">
