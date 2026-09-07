@@ -48,6 +48,7 @@ qu'un crash — voir [Comportement en l'absence de config](#comportement-en-labs
 | `npm run db:push`        | Pousse le schéma directement sur la base (dev rapide)    |
 | `npm run db:studio`      | UI d'inspection de la base (Drizzle Studio)              |
 | `npm run db:seed`        | Peuple `buildings` (bâtiment central + paliers) — idempotent, ne fait rien si déjà peuplée |
+| `npm run preflight`      | Vérifie la config réelle (base joignable et peuplée, clé Stripe valide et son mode, cohérence Pusher, Resend) |
 | `npm test`               | Suite hors-ligne du tunnel d'achat (Postgres embarqué, voir plus bas) |
 
 ## Tests du tunnel d'achat (hors-ligne)
@@ -104,25 +105,39 @@ préférence — chaque étape a besoin de la précédente.
    keys. Aucune clé publiable n'est nécessaire : le checkout redirige
    vers l'URL hébergée de la session, il n'y a pas de Stripe.js côté
    client.
-4. **Vérifier la chaîne en local avant de déployer**, avec le CLI Stripe :
+4. **`npm run preflight`** — à lancer après chaque étape, pas seulement à
+   la fin. Il fait les appels qui répondent vraiment : la base est-elle
+   joignable, les tables existent-elles, `buildings` est-elle peuplée, la
+   clé Stripe est-elle acceptée et dans quel mode. Une clé du mauvais
+   mode ou des tables vides ne se voient autrement qu'au premier vrai
+   paiement raté.
+5. **Vérifier la chaîne en local avant de déployer**, avec le CLI Stripe :
    `stripe listen --forward-to localhost:3000/api/webhooks/stripe`. Il
    affiche un `whsec_...` à mettre dans `STRIPE_WEBHOOK_SECRET`. C'est le
    seul moment où l'on peut déboguer le webhook sans passer par un
    déploiement. Payer avec la carte de test `4242 4242 4242 4242`, puis
    suivre le retour sur `/panneau/nouveau?session_id=...` qui déclenche
    le claim.
-5. **Déployer sur Vercel** : importer le dépôt, choisir la branche de
+6. **Déployer sur Vercel** : importer le dépôt, choisir la branche de
    production, reporter les variables d'environnement. Le site tourne
    sans Pusher ni Resend (tout est "lazy" et tombe en repli propre) — on
-   peut les ajouter après.
-6. **Webhook de production.** Il faut l'URL du déploiement pour créer
+   peut les ajouter après. Le dépôt n'a qu'une branche
+   (`claude/vitrine-panneaux-payants-fvip4r`), qui en est donc la branche
+   par défaut : Vercel la proposera telle quelle. Une branche `main` est
+   plus lisible à terme, mais n'est pas nécessaire pour déployer.
+7. **Webhook de production.** Il faut l'URL du déploiement pour créer
    l'endpoint Stripe (`https://…/api/webhooks/stripe`,
    `checkout.session.completed`), et son *signing secret* pour que le
    webhook fonctionne : donc déployer d'abord, ajouter
    `STRIPE_WEBHOOK_SECRET` ensuite, puis redéployer. C'est l'oeuf et la
    poule, pas un oubli.
-7. **Pusher** (temps réel) et **Resend** (email) ensuite, puis le nom de
-   domaine.
+8. **Pusher** (temps réel) et **Resend** (email) ensuite, puis le nom de
+   domaine. `npm run preflight` couvre les deux : il publie un vrai
+   événement Pusher (sur un canal à part) plutôt que de se contenter de
+   lire les variables, et signale le piège classique — une
+   `NEXT_PUBLIC_PUSHER_KEY` qui ne correspond pas à `PUSHER_KEY`, où le
+   client écoute une autre app que celle où le serveur publie, sans
+   aucune erreur nulle part.
 
 La **catégorie se choisit au claim** (`/panneau/nouveau`), avec l'URL à
 laquelle elle appartient — et à cet endroit seulement. Elle était
