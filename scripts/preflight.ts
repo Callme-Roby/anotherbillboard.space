@@ -143,6 +143,74 @@ const checks: Check[] = [
   },
 
   {
+    label: "Stripe — endpoint webhook",
+    run: async () => {
+      if (!process.env.STRIPE_SECRET_KEY) {
+        return { status: "skip", detail: "pas de clé Stripe, rien à interroger" };
+      }
+
+      const { getStripe } = await import("../src/lib/stripe/client");
+      const stripe = getStripe();
+      let endpoints;
+      let livemode: boolean;
+      try {
+        livemode = (await stripe.balance.retrieve()).livemode;
+        endpoints = (await stripe.webhookEndpoints.list({ limit: 100 })).data.filter((endpoint) =>
+          endpoint.url.endsWith("/api/webhooks/stripe"),
+        );
+      } catch (error) {
+        return {
+          status: "fail",
+          detail: error instanceof Error ? error.message : String(error),
+          fix: "La clé doit pouvoir lire les webhook endpoints (une clé secrète sk_ le peut ; une clé restreinte rk_ doit en avoir le droit).",
+        };
+      }
+
+      if (endpoints.length === 0) {
+        // Le CLI (`stripe listen`) ne crée pas d'endpoint : en test et en
+        // local, c'est normal. En réel, sans endpoint, un client paie et
+        // son panneau n'existe jamais.
+        return livemode
+          ? {
+              status: "fail",
+              detail: "mode RÉEL, mais aucun endpoint vers /api/webhooks/stripe",
+              fix: "Étape 7 : Developers -> Webhooks -> Add endpoint, en mode réel, sur https://<domaine>/api/webhooks/stripe.",
+            }
+          : { status: "skip", detail: "aucun endpoint en mode test — normal en local avec `stripe listen`" };
+      }
+
+      // Les deux sont nécessaires : `completed` pour la carte, et
+      // `async_payment_succeeded` pour un moyen de paiement différé (voir
+      // la route du webhook) — sans lui, un prélèvement SEPA encaissé ne
+      // créerait jamais de panneau.
+      const required = ["checkout.session.completed", "checkout.session.async_payment_succeeded"];
+      for (const endpoint of endpoints) {
+        if (endpoint.status !== "enabled") {
+          return {
+            status: "fail",
+            detail: `${endpoint.url} est désactivé`,
+            fix: "Le réactiver dans Developers -> Webhooks (Stripe désactive un endpoint qui échoue trop longtemps).",
+          };
+        }
+        const missing = endpoint.enabled_events.includes("*")
+          ? []
+          : required.filter((event) => !endpoint.enabled_events.includes(event));
+        if (missing.length > 0) {
+          return {
+            status: "fail",
+            detail: `${endpoint.url} n'écoute pas ${missing.join(", ")}`,
+            fix: "Developers -> Webhooks -> l'endpoint -> Update details : cocher ces événements.",
+          };
+        }
+      }
+      return {
+        status: "ok",
+        detail: endpoints.map((endpoint) => endpoint.url).join(", "),
+      };
+    },
+  },
+
+  {
     label: "Pusher (temps réel)",
     optional: true,
     run: async () => {

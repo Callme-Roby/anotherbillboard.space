@@ -27,6 +27,15 @@ import { getStripe } from "@/lib/stripe/client";
  * - `boost` checkout -> grows an existing panel immediately (no claim
  *   step needed, it already has a URL) and broadcasts the update.
  *
+ * Only money actually received counts. With a delayed payment method
+ * (SEPA debit, if it is ever enabled in the Stripe dashboard),
+ * `checkout.session.completed` arrives with `payment_status: "unpaid"`
+ * and the funds settle days later — or never. That delivery is
+ * acknowledged and ignored; the effect is applied on
+ * `checkout.session.async_payment_succeeded` instead, which carries the
+ * same session. Card payments arrive already `paid` on `completed`, so
+ * for them nothing changes.
+ *
  * Every event is recorded (atomically with its effect, via `db.batch` —
  * see queries/panels.ts) so a re-delivered event — Stripe explicitly
  * documents this can happen — is a safe no-op instead of double-applying
@@ -51,11 +60,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  if (event.type !== "checkout.session.completed") {
+  if (event.type !== "checkout.session.completed" && event.type !== "checkout.session.async_payment_succeeded") {
     return NextResponse.json({ received: true });
   }
 
   const session = event.data.object as Stripe.Checkout.Session;
+  if (session.payment_status !== "paid") {
+    console.log("[webhook] session not paid yet, waiting for async_payment_succeeded", session.id);
+    return NextResponse.json({ received: true });
+  }
   const amountCents = session.amount_total;
   if (amountCents === null || amountCents === undefined) {
     console.error("[webhook] session has no amount_total", session.id);

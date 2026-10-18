@@ -42,14 +42,17 @@ describe("stripe webhook", () => {
     sessionId: string;
     amountTotal?: number;
     metadata?: Record<string, string>;
+    type?: string;
+    paymentStatus?: string;
   }) => ({
     id: overrides.eventId,
     object: "event",
-    type: "checkout.session.completed",
+    type: overrides.type ?? "checkout.session.completed",
     data: {
       object: {
         id: overrides.sessionId,
         object: "checkout.session",
+        payment_status: overrides.paymentStatus ?? "paid",
         amount_total: overrides.amountTotal ?? 5000,
         metadata: overrides.metadata ?? { type: "new_panel" },
       },
@@ -107,6 +110,40 @@ describe("stripe webhook", () => {
     const panel = await findPanelBySessionId("cs_replay");
     assert.ok(panel);
     assert.equal(panel.amount, 5000, "the amount must not have been applied twice");
+  });
+
+  it("waits for the money on a delayed payment method", async () => {
+    // SEPA-style: the checkout completes before the funds settle.
+    const completed = await deliver(
+      checkoutCompleted({ eventId: "evt_async_completed", sessionId: "cs_async", paymentStatus: "unpaid" }),
+    );
+    assert.equal(completed.status, 200);
+    assert.equal(await findPanelBySessionId("cs_async"), undefined, "no panel before the payment settles");
+
+    const succeeded = await deliver(
+      checkoutCompleted({
+        eventId: "evt_async_succeeded",
+        sessionId: "cs_async",
+        type: "checkout.session.async_payment_succeeded",
+      }),
+    );
+    assert.equal(succeeded.status, 200);
+    const panel = await findPanelBySessionId("cs_async");
+    assert.ok(panel, "the settled payment should create the panel");
+    assert.equal(panel.amount, 5000);
+  });
+
+  it("never creates a panel for a delayed payment that failed", async () => {
+    await deliver(checkoutCompleted({ eventId: "evt_failed_completed", sessionId: "cs_failed", paymentStatus: "unpaid" }));
+    await deliver(
+      checkoutCompleted({
+        eventId: "evt_failed",
+        sessionId: "cs_failed",
+        type: "checkout.session.async_payment_failed",
+        paymentStatus: "unpaid",
+      }),
+    );
+    assert.equal(await findPanelBySessionId("cs_failed"), undefined);
   });
 
   it("ignores event types it does not handle", async () => {
