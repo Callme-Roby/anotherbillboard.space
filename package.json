@@ -19,7 +19,7 @@
     "@neondatabase/serverless": "^1.1.0",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.2",
-    "next": "16.3.4",
+    "next": "16.4.2",
     "node-vibrant": "^4.0.4",
     "pusher": "^5.3.4",
     "pusher-js": "^8.6.0",
@@ -39,7 +39,7 @@
     "@types/three": "^0.185.4",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5"
