@@ -44,7 +44,14 @@ export async function GET(request: NextRequest) {
   // Zoomed in (1) sees more panels than the default zoomed-out overview (0).
   const limit = Math.round(BASE_LIMIT + zoom * (MAX_LIMIT - BASE_LIMIT));
 
-  const panels = await listPanels({ category, limit });
-
-  return NextResponse.json({ panels: panels.map(serializePanel) });
+  try {
+    const panels = await listPanels({ category, limit });
+    return NextResponse.json({ panels: panels.map(serializePanel) });
+  } catch (error) {
+    // The scene falls back to its demo panels on any non-2xx (see
+    // LivePanels.loadRealPanels) — this just keeps that path a clear 503
+    // instead of an unhandled-error 500.
+    console.error("[panels] failed to list panels", error);
+    return NextResponse.json({ error: "Panels are unavailable" }, { status: 503 });
+  }
 }

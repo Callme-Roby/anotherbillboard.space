@@ -121,13 +121,17 @@ préférence — chaque étape a besoin de la précédente.
 6. **Déployer sur Vercel** : importer le dépôt, choisir la branche de
    production, reporter les variables d'environnement. Le site tourne
    sans Pusher ni Resend (tout est "lazy" et tombe en repli propre) — on
-   peut les ajouter après. Le dépôt n'a qu'une branche
-   (`claude/vitrine-panneaux-payants-fvip4r`), qui en est donc la branche
-   par défaut : Vercel la proposera telle quelle. Une branche `main` est
-   plus lisible à terme, mais n'est pas nécessaire pour déployer.
+   peut les ajouter après. Choisir comme branche de production celle
+   qui porte le dernier état du code (le dépôt n'a pas encore de `main`) ;
+   une branche `main` est plus lisible à terme, mais n'est pas nécessaire
+   pour déployer.
 7. **Webhook de production.** Il faut l'URL du déploiement pour créer
-   l'endpoint Stripe (`https://…/api/webhooks/stripe`,
-   `checkout.session.completed`), et son *signing secret* pour que le
+   l'endpoint Stripe (`https://…/api/webhooks/stripe`, événements
+   `checkout.session.completed` **et**
+   `checkout.session.async_payment_succeeded` — le second sert aux moyens
+   de paiement différés comme le prélèvement SEPA, où l'argent arrive
+   après la fin du checkout ; `npm run preflight` vérifie les deux), et
+   son *signing secret* pour que le
    webhook fonctionne : donc déployer d'abord, ajouter
    `STRIPE_WEBHOOK_SECRET` ensuite, puis redéployer. C'est l'oeuf et la
    poule, pas un oubli.
@@ -739,8 +743,10 @@ l'usage (`src/lib/db/client.ts`, `stripe.ts`, `pusher/server.ts`,
 d'environnement manque. Ce que ça donne concrètement sans config :
 
 - La scène s'affiche avec des panneaux de démonstration (mock) tant
-  qu'aucun panneau réel n'existe — `GET /api/panels` échouant proprement
-  bascule dessus automatiquement (`LivePanels.loadRealPanels`).
+  qu'aucun panneau réel n'existe — `GET /api/panels` répondant 503
+  quand la base est injoignable, le client bascule dessus
+  automatiquement (`LivePanels.loadRealPanels`). `GET /api/buildings`
+  répond 503 de la même façon.
 - Les routes de paiement répondent une erreur claire (401/502) plutôt que
   de planter.
 - Diffusion temps réel : silencieusement désactivée si les variables
@@ -821,10 +827,14 @@ déclarative React — plus simple à raisonner ici vu ce qui est demandé.
   de texture du brief).
 - **node-vibrant / avis de sécurité** : sa chaîne de dépendances
   (`@jimp/core` → `file-type`) porte un avis modéré (boucle infinie sur
-  entrée `.asf` malformée, `npm audit`). Contenu par un plafond
-  d'octets + timeout sur chaque fetch/extraction (voir
-  `src/lib/scrape/color.ts`) plutôt que retiré, puisque explicitement
-  suggéré par le brief.
+  entrée `.asf` malformée, `npm audit`). Un timeout ne le contient
+  *pas* : la boucle ne cède jamais la main au minuteur, et 200 octets
+  bloquaient tout le processus (reproduit, voir `tests/color.test.ts`).
+  La vraie garde est une vérification de signature avant node-vibrant :
+  seuls des octets PNG/JPEG/GIF/BMP lui parviennent, que `file-type`
+  reconnaît dès le premier test, sans jamais atteindre le parseur ASF
+  (`src/lib/scrape/color.ts`). `npm audit` continue de signaler l'avis,
+  la dépendance étant toujours là.
 - **Bâtiments additionnels** : la table + l'API existent (débloqués
   calculés depuis le total cumulé), mais la scène 3D n'affiche encore que
   le bâtiment central — faire apparaître dynamiquement les bâtiments

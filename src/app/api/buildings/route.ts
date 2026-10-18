@@ -19,15 +19,20 @@ const CENTRAL_RANKING_SIZE = 5;
  * see the doc comment on the `buildings` table in schema.ts.
  */
 export async function GET() {
-  const totalAmountCents = await getTotalAmountCents();
-  const [buildings, centralRanking] = await Promise.all([
-    listBuildingsWithUnlockState(totalAmountCents),
-    getTopPanelsByAmount(CENTRAL_RANKING_SIZE),
-  ]);
+  try {
+    const totalAmountCents = await getTotalAmountCents();
+    const [buildings, centralRanking] = await Promise.all([
+      listBuildingsWithUnlockState(totalAmountCents),
+      getTopPanelsByAmount(CENTRAL_RANKING_SIZE),
+    ]);
 
-  return NextResponse.json({
-    totalAmountCents,
-    buildings,
-    centralRanking: centralRanking.map(serializePanel),
-  });
+    return NextResponse.json({
+      totalAmountCents,
+      buildings,
+      centralRanking: centralRanking.map(serializePanel),
+    });
+  } catch (error) {
+    console.error("[buildings] failed to load buildings", error);
+    return NextResponse.json({ error: "Buildings are unavailable" }, { status: 503 });
+  }
 }
